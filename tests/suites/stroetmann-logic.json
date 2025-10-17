@@ -1,0 +1,11 @@
+{
+  "git": "https://github.com/karlstroetmann/Logic.git",
+  "name": "Logic",
+  "dir": "SetlX",
+  "blacklist": [
+    "bug.stlx",
+    "dempster-shafer.stlx",
+    "parse-propositional.stlx",
+    "tautologyOld.stlx"
+  ]
+}

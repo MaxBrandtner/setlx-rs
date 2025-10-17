@@ -1,0 +1,8 @@
+*.txt
+*.dot
+*.png
+*.dump
+SetlXgrammar.g4
+target
+Cargo.lock
+__TESTCACHE__

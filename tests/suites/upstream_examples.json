@@ -1,0 +1,8 @@
+{
+  "git": "https://github.com/herrmanntom/setlX.git",
+  "name": "setlX",
+  "dir": "example_SetlX_code",
+  "blacklist": [
+    "simple_examples/crazyParserSyntaxErrorCheck.stlx"
+  ]
+}

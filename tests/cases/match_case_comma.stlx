@@ -1,0 +1,4 @@
+match (a) {
+	case a, b, c: return 1;
+	default: return 0;
+}
