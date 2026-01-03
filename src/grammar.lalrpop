@@ -1,6 +1,7 @@
-use setlx_rs::ast::*;
 use num_bigint::BigInt;
 use std::str::FromStr;
+
+use crate::ast::*;
 
 grammar;
 
@@ -69,14 +70,14 @@ ElseDecl: CSTBlock = {
 	"else" "{" <b:Block> "}" => b
 }
 
-SwitchDecl: CSTSwitch = {
-	"switch" "{" <cases:SwitchCase*> <default: SwitchDefault?> "}"
-	=> CSTSwitch {cases, default}
+SwitchDecl: CSTIf = {
+	"switch" "{" <branches:SwitchCase*> <alternative: SwitchDefault?> "}"
+	=> CSTIf {branches, alternative}
 }
 
-SwitchCase: CSTSwitchCase = {
+SwitchCase: CSTIfBranch = {
 	"case" <e:Expr> ":" <b:Block> 
-	=> CSTSwitchCase {condition: e, block: b}
+	=> CSTIfBranch {condition: e, block: b}
 }
 
 SwitchDefault: CSTBlock = {
@@ -142,20 +143,12 @@ MatchRegexBranchAs: CSTExpression = {
 }
 
 ScanDecl: CSTScan = {
-	"scan" "(" <e:Expr> ")" <i:ScanUsing?> "{" <br:MatchRegexBranch+>
-	<b:ScanDefault?> "}"
+	"scan" "(" <e:Expr> ")" <i:ScanUsing?> "{" <br:MatchRegexBranch+> "}"
 	=> {
-		let b_out = if let Some(b_val) = b {
-			b_val
-		} else {
-			Vec::new()
-		};
-
 		CSTScan {
 			expression: e,
 			variable: i,
 			branches: br,
-			default: b_out,
 		}
 	}
 }
@@ -164,16 +157,20 @@ ScanUsing: String = {
 	"using" <i:Ident> => i
 }
 
-ScanDefault: CSTBlock = {
-	"default" ":" <b:Block> => b
-}
-
 ForDecl: CSTFor = {
 	"for" "(" <i:IteratorChain> <c:PipeExpr?> ")" "{" <b:Block> "}"
-	=> CSTFor {
-		params: i,
-		condition: c,
-		block: b,
+	=> {
+		let condition = if let Some(c_val) = c {
+			Some(Box::new(c_val))
+		} else {
+			None
+		};
+
+		CSTFor {
+			params: i,
+			condition,
+			block: b,
+		}
 	}
 }
 
@@ -269,6 +266,16 @@ ReturnDecl: CSTReturn = {
 }
 
 AssignDecl: CSTStatement = {
+	/* FIXME accepts invalid syntax:
+	 * (a) := 4;
+	 * a() := 3;
+	 * a{1} := 2;
+	 *
+	 * NOTE the follow is valid:
+	 * (a).x := 3;
+	 * (a)[1] := 3;
+	 * a().x := 3;
+	 */
 	<assign:Accessible> ":=" <expr:AssignSource>
 	=> CSTStatement::Assign(CSTAssign { assign, expr: Box::new(expr) })
 }
@@ -303,7 +310,7 @@ ExprList: Vec<CSTExpression> = {
 	}
 }
 
-Expr: CSTExpression = {
+pub Expr: CSTExpression = {
 	<i:Lambda> => CSTExpression::Lambda(i),
 	<i:SetEqual> => i,
 }
@@ -314,7 +321,8 @@ LambdaParams: CSTCollection = {
 			range: None,
 			expressions: vec![
 				CSTExpression::Variable(i)
-			]
+			],
+			rest: None,
 		}
 	),
 	/**
@@ -575,18 +583,13 @@ PowerRest: CSTExpression = {
 	"**" <p:PrefixOperation> => p
 }
 
-ProcedureCallName: (bool, String) = {
-	<name:Term> => (true, name),
-	<name:Ident> => (false, name),
-}
-
 QuantKind: CSTQuantifierKind = {
 	"exists" => CSTQuantifierKind::Exists,
 	"forall" => CSTQuantifierKind::Forall,
 }
 
 Call: CSTExpression = {
-	<name:ProcedureCallName> "(" <p:ProcedureCallParams?> ")"
+	<name:Ident> "(" <p:ProcedureCallParams?> ")"
 	=> {
 		let (params, rest_param) = if let Some((p_0, p_1)) = p {
 			(p_0, p_1)
@@ -596,27 +599,7 @@ Call: CSTExpression = {
 
 		CSTExpression::Call(
 			CSTProcedureCall {
-				is_term: name.0,
-				name: name.1,
-				curly_params: false,
-				params,
-				rest_param,
-			}
-		)
-	},
-	<name:ProcedureCallName> "{" <p:ProcedureCallParams?> "}"
-	=> {
-		let (params, rest_param) = if let Some((p_0, p_1)) = p {
-			(p_0, p_1)
-		} else {
-			(Vec::new(), None)
-		};
-
-		CSTExpression::Call(
-			CSTProcedureCall {
-				is_term: name.0,
-				name: name.1,
-				curly_params: true,
+				name,
 				params,
 				rest_param,
 			}
@@ -639,6 +622,29 @@ ProcedureCallParams: (Vec<CSTExpression>, Option<Box<CSTExpression>>) = {
 	},
 	"*" <e:Expr>
 	=> (Vec::new(), Some(Box::new(e)))
+}
+
+TermName: (bool, String) = {
+	<t:Term> => (false, t),
+	<t:TTerm> => (true, t),
+}
+
+TermExpr: CSTTerm = {
+	<name: TermName> "(" <e0:Expr> <args:("," <Expr>)*> ")" => {
+		let mut params = vec![e0];
+		params.extend(args);
+
+		CSTTerm {
+			name: name.1,
+			is_tterm: name.0,
+			params,
+		}
+	},
+	<name: TermName> "(" ")" => CSTTerm {
+		name: name.1,
+		is_tterm: name.0,
+		params: Vec::new(),
+	}
 }
 
 Factor: CSTExpression = {
@@ -677,13 +683,13 @@ AccessibleHead: CSTExpression = {
 	"(" <e:Expr> ")" => e,
 	<e:Ident> => CSTExpression::Variable(e),
 	<e:Call> => e,
-	<e:Value> => e,
 }
 
 AccessibleBodyElem: CSTExpression = {
 	"." <i:Ident> => CSTExpression::Variable(i),
 	"." <i:Call> => i,
-	<c:BrackCollection> => CSTExpression::Collection(c)
+	<c:BrackCollection> => CSTExpression::Collection(c),
+	<c:CurlyCollection> => CSTExpression::Collection(c),
 }
 
 Accessible: CSTExpression = {
@@ -696,7 +702,8 @@ Accessible: CSTExpression = {
 		CSTExpression::Accessible(
 			CSTAccessible {head: Box::new(head), body}
 		)
-	}
+	},
+	<e:Value> => e,
 }
 
 AccessibleList: Vec<CSTExpression> = {
@@ -795,10 +802,11 @@ Procedure: CSTExpression = {
 
 Value: CSTExpression = {
 	<i:Collection>  => CSTExpression::Collection(i),
-	<i:StringRule>  => CSTExpression::Literal(i),
+	<i:StringRule>  => CSTExpression::String(i),
 	<i:Literal>     => CSTExpression::Literal(i),
 	<i:Matrix>     =>  CSTExpression::Matrix(i),
 	<i:Vector>      => CSTExpression::Vector(i),
+	<i:TermExpr>    => CSTExpression::Term(i),
 	<i:AtomicValue> => i,
 	"_"             => CSTExpression::Ignore,
 }
@@ -812,10 +820,10 @@ PipeExpr: CSTExpression = {
 	"|" <e:Expr> => e
 }
 
-ExtendedBrackCollection: CSTCollection = {
+ExtendedCollection: CSTSet = {
 	<e0:Expr> ".." <e1:Expr>
 	=> {
-		let set = CSTSet {
+		CSTSet {
 			range: Some(
 				CSTRange {
 					left: Some(Box::new(e0)),
@@ -823,57 +831,40 @@ ExtendedBrackCollection: CSTCollection = {
 				}
 			),
 			expressions: Vec::new(),
-		};
-
-		CSTCollection::List(set)
+			rest: None,
+		}
 	},
-	<e0:Expr> <rest:("," Expr)*> <e1:PipeExpr?>
+	<e0:Expr> <rest:("," <Expr>)*> <e1:PipeExpr?>
 	=> {
-		let mut expressions: Vec<CSTExpression> = Vec::from([e0]);
-		expressions.extend(rest.into_iter().map(|(_, e1)|e1));
-		let condition = if let Some(e1_val) = e1 {
+		let mut expressions = Vec::from([e0]);
+		expressions.extend(rest);
+		let rest = if let Some(e1_val) = e1 {
 			Some(Box::new(e1_val))
 		} else {
 			None
 		};
 
-		let comp = CSTComprehension {
+		CSTSet {
+			range: None,
 			expressions,
-			iterators: Vec::new(),
-			condition
-		};
-
-		CSTCollection::ListComprehension(comp)
+			rest,
+		}
 	},
 }
 
 BrackCollection: CSTCollection = {
-	"[" <e0:Expr> "," <x:ExtendedBrackCollection> "]"
+	"[" <e0:Expr> "," <x:ExtendedCollection> "]"
 	=> {
-		let mut out = x;
+		let mut expressions = vec![e0];
+		expressions.extend(x.expressions);
 
-		let mut e0_vec = vec![e0];
-
-		match out {
-			CSTCollection::Set(ref mut x) => {
-				e0_vec.append(&mut x.expressions);
-				x.expressions = e0_vec;
+		CSTCollection::List(
+			CSTSet {
+				range: x.range,
+				expressions,
+				rest: x.rest,
 			}
-			CSTCollection::List(ref mut x) => {
-				e0_vec.append(&mut x.expressions);
-				x.expressions = e0_vec;
-			}
-			CSTCollection::SetComprehension(ref mut x) => {
-				e0_vec.append(&mut x.expressions);
-				x.expressions = e0_vec;
-			}
-			CSTCollection::ListComprehension(ref mut x) => {
-				e0_vec.append(&mut x.expressions);
-				x.expressions = e0_vec;
-			}
-		}
-
-		out
+		)
 	},
 	"[" <e0:Expr> ".." <e1:Expr?> "]"
 	=> {
@@ -883,17 +874,18 @@ BrackCollection: CSTCollection = {
 			None
 		};
 
-		let set = CSTSet {
-			range: Some(
-				CSTRange {
-					left: Some(Box::new(e0)),
-					right
-				}
-			),
-			expressions: Vec::new(),
-		};
-
-		CSTCollection::List(set)
+		CSTCollection::List(
+			CSTSet {
+				range: Some(
+					CSTRange {
+						left: Some(Box::new(e0)),
+						right,
+					}
+				),
+				expressions: Vec::new(),
+				rest: None,
+			}
+		)
 	},
 	"["".." <e0:Expr >"]"
 	=> CSTCollection::List(
@@ -904,7 +896,8 @@ BrackCollection: CSTCollection = {
 					right: Some(Box::new(e0))
 				}
 			),
-			expressions: Vec::new()
+			expressions: Vec::new(),
+			rest: None,
 		}
 	),
 	"[" <e0:Expr> ":" <i:IteratorChain> <c:PipeExpr?> "]"
@@ -915,93 +908,56 @@ BrackCollection: CSTCollection = {
 			None
 		};
 
-		let comp = CSTComprehension {
-			expressions: vec![e0],
-			iterators: i,
-			condition,
-		};
-
-		CSTCollection::ListComprehension(comp)
+		CSTCollection::ListComprehension(
+			CSTComprehension {
+				expression: Box::new(e0),
+				iterators: i,
+				condition,
+			}
+		)
 	},
 	"[" <e0:Expr> <c:PipeExpr> "]"
-	=> CSTCollection::ListComprehension(
-		CSTComprehension {
+	=> CSTCollection::List(
+		CSTSet {
+			range: None,
 			expressions: vec![e0],
-			iterators: Vec::new(),
-			condition: Some(Box::new(c)),
+			rest: Some(Box::new(c)),
 		}
 	),
 	"[" <e:Expr?> "]" => {
 		if let Some(e_val) = e {
-			CSTCollection::List(CSTSet{range: None, expressions: vec![e_val]})
-		} else {
-			CSTCollection::List(CSTSet{range: None, expressions: Vec::new()})
-		}
-	}
-}
-
-ExtendedCurlyCollection: CSTCollection = {
-	<e0:Expr> ".." <e1:Expr>
-	=> {
-		let set = CSTSet {
-			range: Some(
-				CSTRange {
-					left: Some(Box::new(e0)),
-					right: Some(Box::new(e1)),
+			CSTCollection::List(
+				CSTSet{
+					range: None,
+					expressions: vec![e_val],
+					rest: None,
 				}
-			),
-			expressions: Vec::new(),
-		};
-
-		CSTCollection::Set(set)
-	},
-	<e0:Expr> <rest:("," Expr)*> <e1:PipeExpr?>
-	=> {
-		let mut expressions: Vec<CSTExpression> = Vec::from([e0]);
-		expressions.extend(rest.into_iter().map(|(_, e1)|e1));
-		let condition = if let Some(e1_val) = e1 {
-			Some(Box::new(e1_val))
+			)
 		} else {
-			None
-		};
-
-		let comp = CSTComprehension {
-			expressions,
-			iterators: Vec::new(),
-			condition
-		};
-
-		CSTCollection::SetComprehension(comp)
+			CSTCollection::List(
+				CSTSet{
+					range: None,
+					expressions: Vec::new(),
+					rest: None,
+				}
+			)
+		}
 	}
 }
 
 CurlyCollection: CSTCollection = {
-	"{" <e0:Expr> "," <x:ExtendedCurlyCollection> "}"
+	"{" <e0:Expr> "," <x:ExtendedCollection> "}"
 	=> {
-		let mut out = x;
+		let mut expressions = vec![e0];
+		expressions.extend(x.expressions);
 
-		let mut e0_vec = vec![e0];
-
-		match out {
-			CSTCollection::Set(ref mut x) => {
-				e0_vec.append(&mut x.expressions);
-				x.expressions = e0_vec;
+		CSTCollection::Set(
+			CSTSet {
+				range: x.range,
+				expressions,
+				rest: x.rest,
 			}
-			CSTCollection::List(ref mut x) => {
-				e0_vec.append(&mut x.expressions);
-				x.expressions = e0_vec;
-			}
-			CSTCollection::SetComprehension(ref mut x) => {
-				e0_vec.append(&mut x.expressions);
-				x.expressions = e0_vec;
-			}
-			CSTCollection::ListComprehension(ref mut x) => {
-				e0_vec.append(&mut x.expressions);
-				x.expressions = e0_vec;
-			}
-		}
-
-		out
+		)
 	},
 	"{" <e0:Expr> ".." <e1:Expr?> "}"
 	=> {
@@ -1011,17 +967,18 @@ CurlyCollection: CSTCollection = {
 			None
 		};
 
-		let set = CSTSet {
-			range: Some(
-				CSTRange {
-					left: Some(Box::new(e0)),
-					right,
-				}
-			),
-			expressions: Vec::new(),
-		};
-
-		CSTCollection::Set(set)
+		CSTCollection::Set(
+			CSTSet {
+				range: Some(
+					CSTRange {
+						left: Some(Box::new(e0)),
+						right,
+					}
+				),
+				expressions: Vec::new(),
+				rest: None,
+			}
+		)
 	},
 	"{"".." <e0:Expr >"}"
 	=> CSTCollection::Set(
@@ -1032,7 +989,8 @@ CurlyCollection: CSTCollection = {
 					right: Some(Box::new(e0))
 				}
 			),
-			expressions: Vec::new()
+			expressions: Vec::new(),
+			rest: None,
 		}
 	),
 	"{" <e0:Expr> ":" <i:IteratorChain> <c:PipeExpr?> "}"
@@ -1043,27 +1001,39 @@ CurlyCollection: CSTCollection = {
 			None
 		};
 
-		let comp = CSTComprehension {
-			expressions: vec![e0],
-			iterators: i,
-			condition,
-		};
-
-		CSTCollection::SetComprehension(comp)
+		CSTCollection::SetComprehension(
+			CSTComprehension {
+				expression: Box::new(e0),
+				iterators: i,
+				condition,
+			}
+		)
 	},
 	"{" <e0:Expr> <c:PipeExpr> "}"
-	=> CSTCollection::SetComprehension(
-		CSTComprehension {
+	=> CSTCollection::Set(
+		CSTSet {
+			range: None,
 			expressions: vec![e0],
-			iterators: Vec::new(),
-			condition: Some(Box::new(c)),
+			rest: Some(Box::new(c)),
 		}
 	),
 	"{" <e:Expr?> "}" => {
 		if let Some(e_val) = e {
-			CSTCollection::List(CSTSet{range: None, expressions: vec![e_val]})
+			CSTCollection::Set(
+				CSTSet{
+					range: None,
+					expressions: vec![e_val],
+					rest: None,
+				}
+			)
 		} else {
-			CSTCollection::List(CSTSet{range: None, expressions: Vec::new()})
+			CSTCollection::Set(
+				CSTSet{
+					range: None,
+					expressions: Vec::new(),
+					rest: None,
+				}
+			)
 		}
 	}
 }
@@ -1148,7 +1118,19 @@ Ident: String = {
 }
 
 Term: String = {
-	r"(@|@@@)[a-zA-Z][a-zA-Z_0-9]*" => <>.to_string()
+	r"@[a-zA-Z][a-zA-Z_0-9]*" => {
+		let mut chars = <>.chars();
+		chars.next();
+		chars.as_str().to_string()
+	}
+}
+
+TTerm: String = {
+	r"@@@[a-zA-Z][a-zA-Z_0-9]*" => {
+		let mut chars = <>.chars();
+		chars.nth(2);
+		chars.as_str().to_string()
+	}
 }
 
 Number: BigInt = {

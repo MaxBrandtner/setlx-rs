@@ -1,4 +1,5 @@
 use num_bigint::BigInt;
+use strum_macros::{EnumString, Display};
 
 pub type CSTBlock = Vec<CSTStatement>;
 
@@ -6,7 +7,7 @@ pub type CSTBlock = Vec<CSTStatement>;
 pub enum CSTStatement {
     Class(CSTClass),
     If(CSTIf),
-    Switch(CSTSwitch),
+    Switch(CSTIf),
     Match(CSTMatch),
     Scan(CSTScan),
     For(CSTFor),
@@ -34,8 +35,10 @@ pub enum CSTExpression {
     /* factors */
     Procedure(CSTProcedure),
     Call(CSTProcedureCall),
+    Term(CSTTerm),
     Variable(String),
     Accessible(CSTAccessible),
+    String(String),
     Literal(String),
     Bool(bool),
     Double(f64),
@@ -49,7 +52,8 @@ pub enum CSTExpression {
     Ignore,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Display, EnumString, PartialEq)]
+#[strum(serialize_all = "camelCase")]
 pub enum CSTOp {
     Imply,     // =>
     Or,        // ||
@@ -83,7 +87,8 @@ pub struct CSTExpressionOp {
     pub right: Box<CSTExpression>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Display, EnumString, PartialEq)]
+#[strum(serialize_all = "camelCase")]
 pub enum CSTUnaryOp {
     Minus,    //   -
     Card,     //   #
@@ -114,10 +119,13 @@ pub struct CSTParam {
     pub default: Option<CSTExpression>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Display, EnumString, PartialEq)]
 pub enum CSTProcedureKind {
+    #[strum(serialize = "procedure")]
     Normal,
+    #[strum(serialize = "cachedProcedure")]
     Cached,
+    #[strum(serialize = "closure")]
     Closure,
 }
 
@@ -131,11 +139,16 @@ pub struct CSTProcedure {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct CSTProcedureCall {
-    pub is_term: bool,
     pub name: String,
-    pub curly_params: bool,
     pub params: Vec<CSTExpression>,
     pub rest_param: Option<Box<CSTExpression>>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct CSTTerm {
+    pub name: String,
+    pub is_tterm: bool,
+    pub params: Vec<CSTExpression>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -160,11 +173,12 @@ pub struct CSTRange {
 pub struct CSTSet {
     pub range: Option<CSTRange>,
     pub expressions: Vec<CSTExpression>,
+    pub rest: Option<Box<CSTExpression>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct CSTComprehension {
-    pub expressions: Vec<CSTExpression>,
+    pub expression: Box<CSTExpression>,
     pub iterators: Vec<CSTIterParam>,
     pub condition: Option<Box<CSTExpression>>,
 }
@@ -177,7 +191,8 @@ pub enum CSTCollection {
     ListComprehension(CSTComprehension),
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Display, EnumString, PartialEq)]
+#[strum(serialize_all = "camelCase")]
 pub enum CSTQuantifierKind {
     Exists,
     Forall,
@@ -208,18 +223,6 @@ pub struct CSTIfBranch {
 pub struct CSTIf {
     pub branches: Vec<CSTIfBranch>,
     pub alternative: Option<CSTBlock>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct CSTSwitchCase {
-    pub condition: CSTExpression,
-    pub block: CSTBlock,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct CSTSwitch {
-    pub cases: Vec<CSTSwitchCase>,
-    pub default: Option<CSTBlock>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -255,13 +258,12 @@ pub struct CSTScan {
     pub expression: CSTExpression,
     pub variable: Option<String>,
     pub branches: Vec<CSTMatchBranch>, // always resolves to CSTMatchBranchRegex
-    pub default: CSTBlock,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct CSTFor {
     pub params: Vec<CSTIterParam>,
-    pub condition: Option<CSTExpression>,
+    pub condition: Option<Box<CSTExpression>>,
     pub block: CSTBlock,
 }
 
@@ -271,10 +273,13 @@ pub struct CSTWhile {
     pub block: CSTBlock,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Display, EnumString, PartialEq)]
 pub enum CSTCatchKind {
+    #[strum(serialize = "catchUsr")]
     Usr,
+    #[strum(serialize = "catchLng")]
     Lng,
+    #[strum(serialize = "catchFinal")]
     Final,
 }
 
@@ -308,7 +313,8 @@ pub struct CSTAssign {
     pub expr: Box<CSTStatement>, // CSTAssign | CSTExpression
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Display, EnumString, PartialEq)]
+#[strum(serialize_all = "camelCase")]
 #[allow(clippy::enum_variant_names)]
 pub enum CSTAssignModKind {
     PlusEq,   //  +=

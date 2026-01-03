@@ -3,10 +3,10 @@
  *
  * TODO implement derive macros to eliminate this boilerplate code
  */
-use dot::{GraphWalk, Labeller, LabelText, Id, render};
+use dot::{GraphWalk, Labeller, LabelText, Id};
 use std::borrow::Cow;
-use setlx_rs::ast::*;
-use crate::util::debug_file_create;
+
+use crate::ast::*;
 
 // A compact node representation for DOT
 #[derive(Clone, Debug)]
@@ -26,13 +26,13 @@ struct Edge {
 }
 
 // Graph view over a CSTBlock
-struct CSTGraph<'a> {
+pub struct CSTGraph<'a> {
     nodes: Vec<NodeKind<'a>>,
     edges: Vec<Edge>,
 }
 
 impl<'a> CSTGraph<'a> {
-    fn new(block: &'a CSTBlock) -> Self {
+    pub fn new(block: &'a CSTBlock) -> Self {
         let mut g = CSTGraph {
             nodes: Vec::new(),
             edges: Vec::new(),
@@ -72,7 +72,7 @@ impl<'a> CSTGraph<'a> {
                     self.visit_block(sid, b, "static");
                 }
             }
-            If(i) => {
+            If(i) | Switch(i) => {
                 for (k, br) in i.branches.iter().enumerate() {
                     let bn = self.add_node(NodeKind::Label(format!("if_branch[{k}]")));
                     self.add_edge(sid, bn, "branch".to_string());
@@ -83,19 +83,6 @@ impl<'a> CSTGraph<'a> {
                 }
                 if let Some(alt) = &i.alternative {
                     self.visit_block(sid, alt, "else");
-                }
-            }
-            Switch(sw) => {
-                for (k, case) in sw.cases.iter().enumerate() {
-                    let cn = self.add_node(NodeKind::Label(format!("case[{k}]")));
-                    self.add_edge(sid, cn, "case".to_string());
-                    let cond = self.add_node(NodeKind::Expression(&case.condition));
-                    self.add_edge(cn, cond, "cond".to_string());
-                    self.visit_expr(cond, &case.condition);
-                    self.visit_block(cn, &case.block, "block");
-                }
-                if let Some(def) = &sw.default {
-                    self.visit_block(sid, def, "default");
                 }
             }
             Match(m) => {
@@ -169,7 +156,6 @@ impl<'a> CSTGraph<'a> {
                         self.visit_block(bn, &rx.statements, "block");
                     }
                 }
-                self.visit_block(sid, &s.default, "default");
             }
             For(f) => {
                 for it in &f.params {
@@ -288,10 +274,8 @@ impl<'a> CSTGraph<'a> {
                 self.visit_block(eid, &p.block, "block");
             }
             Call(c) => {
-                let name = self.add_node(NodeKind::Label(format!("call:{}, term:{}", c.name, c.is_term)));
+                let name = self.add_node(NodeKind::Label(format!("call:{}", c.name)));
                 self.add_edge(eid, name, "name".to_string());
-                let curly = self.add_node(NodeKind::Label(format!("curly:{}", c.curly_params)));
-                self.add_edge(eid, curly, "curly".to_string());
                 for (i, p) in c.params.iter().enumerate() {
                     let pn = self.add_node(NodeKind::Expression(p));
                     self.add_edge(eid, pn, format!("arg[{i}]"));
@@ -301,6 +285,15 @@ impl<'a> CSTGraph<'a> {
                     let rn = self.add_node(NodeKind::Expression(rest));
                     self.add_edge(eid, rn, "rest".to_string());
                     self.visit_expr(rn, rest);
+                }
+            }
+            Term(t) => {
+                let name = self.add_node(NodeKind::Label(format!("term:{}, is_tterm: {}", t.name, t.is_tterm)));
+                self.add_edge(eid, name, "name".to_string());
+                for (i, p) in t.params.iter().enumerate() {
+                    let pn = self.add_node(NodeKind::Expression(p));
+                    self.add_edge(eid, pn, format!("param[{i}]"));
+                    self.visit_expr(pn, p);
                 }
             }
             Variable(v) => {
@@ -316,6 +309,10 @@ impl<'a> CSTGraph<'a> {
                     self.add_edge(eid, bn, format!("idx[{i}]"));
                     self.visit_expr(bn, b);
                 }
+            }
+            String(s) => {
+                let ln = self.add_node(NodeKind::Label(format!("lit:{s}")));
+                self.add_edge(eid, ln, "literal".to_string());
             }
             Literal(s) => {
                 let ln = self.add_node(NodeKind::Label(format!("lit:{s}")));
@@ -424,15 +421,18 @@ impl<'a> CSTGraph<'a> {
                     self.add_edge(parent, en, format!("elem[{i}]"));
                     self.visit_expr(en, e);
                 }
+                if let Some(rest) = &s.rest {
+                    let rn = self.add_node(NodeKind::Label("rest".to_string()));
+                    self.add_edge(parent, rn, "rest".to_string());
+                    self.visit_expr(rn, rest);
+                }
             }
             CSTCollection::SetComprehension(comp) | CSTCollection::ListComprehension(comp) => {
                 let cn = self.add_node(NodeKind::Label("comprehension".to_string()));
                 self.add_edge(parent, cn, "comp".to_string());
-                for (i, e) in comp.expressions.iter().enumerate() {
-                    let en = self.add_node(NodeKind::Expression(e));
-                    self.add_edge(cn, en, format!("expr[{i}]"));
-                    self.visit_expr(en, e);
-                }
+                let en = self.add_node(NodeKind::Expression(&comp.expression));
+                self.add_edge(cn, en, "expr".to_string());
+                self.visit_expr(en, &comp.expression);
                 for it in &comp.iterators {
                     let inod = self.add_node(NodeKind::Label("iter".to_string()));
                     self.add_edge(cn, inod, "iter".to_string());
@@ -529,8 +529,10 @@ fn expr_name(e: &CSTExpression) -> &'static str {
         UnaryOp(_) => "UnaryOp",
         Procedure(_) => "Procedure",
         Call(_) => "Call",
+        Term(_) => "Term",
         Variable(_) => "Variable",
         Accessible(_) => "Accessible",
+        String(_) => "String",
         Literal(_) => "Literal",
         Bool(_) => "Bool",
         Double(_) => "Double",
@@ -542,11 +544,4 @@ fn expr_name(e: &CSTExpression) -> &'static str {
         Om => "Om",
         Ignore => "Ignore",
     }
-}
-
-pub fn cst_dump_dot(cst: &CSTBlock, stem: &str) {
-    let graph = CSTGraph::new(cst);
-
-    let mut file = debug_file_create(format!("{stem}-cst-tree.dot"));
-    render(&graph, &mut file).unwrap();
 }

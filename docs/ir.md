@@ -1,0 +1,50 @@
+# IR
+
+- 3 address form
+- cfg
+    - procedures
+        - every procedure has only one return statement
+    - basic blocks
+        - every try / catch block set has exactly one entry and exit bb
+- variable
+    - procedure
+    - closure
+    - object
+    - native object
+    - iterator
+    - map
+    - vec
+    - string
+    - number
+    - double
+    - matrix
+    - vector
+    - om
+- statements
+    - return
+    - assign
+        - op:
+            - access array
+            - access member
+            - ptr address
+            - ptr deref
+            - unary minus
+            - unary assign
+            - or
+            - and
+            - not
+            - less
+            - equal
+            - plus
+            - minus
+            - mult
+            - divide
+            - int divide
+            - mod
+        - left: variable
+        - right: Option<variable>
+    - call
+    - native call
+    - if / else
+    - try / catch
+    - goto

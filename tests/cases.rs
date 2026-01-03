@@ -1,9 +1,6 @@
+use setlx_rs::setlx_parse::BlockParser;
 use std::fs;
 use walkdir::WalkDir;
-
-mod setlx_parse {
-    include!(concat!(env!("OUT_DIR"), "/grammar.rs"));
-}
 
 #[test]
 fn cases_main() {
@@ -19,6 +16,6 @@ fn cases_main() {
         let contents = fs::read_to_string(i.path()).unwrap();
 
         eprintln!("parsing {pathname}");
-        let _ = setlx_parse::BlockParser::new().parse(&contents).unwrap();
+        let _ = BlockParser::new().parse(&contents).unwrap();
     }
 }

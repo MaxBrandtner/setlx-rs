@@ -23,6 +23,7 @@ pub fn debug_file_create(name: String) -> File {
     }
 }
 
+#[allow(dead_code)]
 pub fn file_read(path: &PathBuf) -> String {
     let bytes = match read(path) {
         Ok(c) => c,

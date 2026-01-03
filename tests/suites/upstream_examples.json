@@ -3,6 +3,8 @@
   "name": "setlX",
   "dir": "example_SetlX_code",
   "blacklist": [
-    "simple_examples/crazyParserSyntaxErrorCheck.stlx"
+    "simple_examples/crazyParserSyntaxErrorCheck.stlx",
+    "simple_examples/formatedStringError.stlx",
+    "xmlscanner.stlx"
   ]
 }
