@@ -1,0 +1,24 @@
+class nda(alphabet) {
+    ndaAlphabet := alphabet;
+
+    static {
+        isEmpty := procedure() {
+		print(this != om);
+		print(ndaAlphabet);
+        };
+    }
+}
+
+myNda := nda({"a","b"});
+myNda.isEmpty();
+
+a := procedure () { print(this == om); print(x == om); };
+d := procedure () { a(); };
+class b() { x := a; }
+c := b();
+c.x();
+
+class e() { a := []|->print(x); }
+x:=1;
+f:=e();
+f.a();

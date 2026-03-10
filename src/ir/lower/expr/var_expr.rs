@@ -29,7 +29,7 @@ pub fn block_var_push(
             IRStmt::Assign(IRAssign {
                 target: IRTarget::Variable(tmp),
                 types: IRType::PTR,
-                source: IRValue::BuiltinProc(BuiltinProc::StackGetAssert),
+                source: IRValue::BuiltinProc(BuiltinProc::StackGetOrNew),
                 op: IROp::NativeCall(vec![IRValue::String(c.to_string())]),
             }),
             IRStmt::Assign(IRAssign {

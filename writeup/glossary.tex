@@ -1,0 +1,54 @@
+\newglossaryentry{reduce-reduce-def}{
+	name={Reduce-Reduce Conflict},
+	description={A reduce-reduce conflict arises in a parser when two or more grammar rules are eligible for reduction given the same parser state and lookahead token. It typically occurs when two constructs share a common prefix that is only disambiguated by context beyond the lookahead window}
+}
+
+\newglossaryentry{CST-def}{
+	name={Concrete Syntax Tree},
+    description={A concrete syntax tree or parse tree is a hierarchical tree representation of the syntactic structure of source code that directly reflects the grammar rules used to parse it}
+}
+
+\newglossaryentry{AST-def}{
+	name={Abstract Syntax Tree},
+	description={An abstract syntax tree is a tree-shaped representation of source code that captures its semantic structure independently of the grammar rules used to parse it. Unlike a concrete syntax tree, its shape is not constrained by the grammar and can be designed to reflect the logical structure of the language more directly}
+}
+
+\newglossaryentry{DAG-def}{
+	name={Directed Acyclic Graph},
+	description={A directed acyclic graph is graph made up of nodes that are interconnected through directed edges. A directed acyclic graph must not contain cycles, but must not necessarily be tree-shaped}
+}
+
+\newglossaryentry{CFG-def}{
+	name={Control Flow Graph},
+	description={A control flow graph encodes all possible paths a program may take during execution. The code is divided into basic blocks, each of which becomes a node in the graph. If execution may transfer from one block to another via a jump or branch, a directed edge is added between the two}
+}
+
+\newglossaryentry{IR-def}{
+	name={Intermediate Representation},
+	description={An intermediate representation is a data structure used internally by a compiler or interpreter to represent a program between the source language and the target language. It is designed to be amenable to analysis and optimization}
+}
+
+\newglossaryentry{basicblock-def}{
+	name={Basic Block},
+	description={A basic block is a straight-line sequence of instructions with exactly one entry point and one exit point. It begins with a label and ends with a terminal statement such as a jump or branch. Basic blocks are the nodes of a control flow graph}
+}
+
+\newglossaryentry{TAC-def}{
+	name={Three-Address Code},
+	description={Three-address code is an intermediate representation in which a program is expressed as a sequence of simple instructions, each operating on at most two operands and producing at most one result. Operands are either variable names, constants, or compiler-generated temporaries. High-level constructs such as loops are expressed using conditional and unconditional jumps}
+}
+
+\newglossaryentry{SSA-def}{
+	name={Static Single Assignment Form},
+	description={Static single assignment form imposes the constraint on an intermediate representation that each variable is assigned exactly once and that every variable is defined before it is used. This property simplifies many compiler optimizations such as constant propagation, copy propagation, and dead code elimination, as the single assignment guarantee makes the definition of every variable unambiguous}
+}
+
+\newglossaryentry{landingpad-def}{
+	name={Landing Pad},
+	description={A landing pad is a compiler-generated block of code that serves as the entry point for the unwinder when it reaches a stack frame requiring attention during exception handling, either because the frame contains a matching handler or because it has live owned objects that must be destroyed}
+}
+
+\newglossaryentry{RAII-def}{
+	name={Resource Acquisition Is Initialization},
+	description={Resource acquisition is initialization is a programming idiom in which a resource is acquired when an object is initialized and released when that object is destroyed, with the compiler inserting destructor calls at every exit point of a scope. It relies on ownership -- the property that exactly one binding is responsible for a resource at any time -- borrowing, which allows temporary access without transferring ownership, and lifetimes, which statically constrain how long a reference may be held}
+}

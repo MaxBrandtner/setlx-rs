@@ -1,0 +1,2 @@
+print(matches("hello", "(hel.+)", true));
+print(matches("hello", "no", true));

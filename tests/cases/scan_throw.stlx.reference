@@ -1,0 +1,2 @@
+["test"]{["char", 1], ["column", 1], ["line", 1]}
+Infinite loop in scan-statement detected.

@@ -15,16 +15,12 @@ pub fn block_for_push(
     shared_proc: &mut IRSharedProc,
     cfg: &mut IRCfg,
 ) {
-    struct ExprModArgs<'a> {
-        block: &'a CSTBlock,
-        ret_idx: NodeIndex,
-    }
-
     fn expr_mod(
         expr_idx: NodeIndex,
         backtrack_idx: NodeIndex,
         follow_idx: NodeIndex,
-        args: &ExprModArgs,
+        ret_idx: Option<NodeIndex>,
+        block: &CSTBlock,
         proc: &mut IRProcedure,
         shared_proc: &mut IRSharedProc,
         cfg: &mut IRCfg,
@@ -32,18 +28,18 @@ pub fn block_for_push(
         let mut expr_idx = expr_idx;
         let terminated = block_populate(
             &mut expr_idx,
-            args.block,
+            block,
             Some(backtrack_idx),
             Some(follow_idx),
-            args.ret_idx,
+            ret_idx.unwrap(),
             proc,
             shared_proc,
             cfg,
         );
 
         if !terminated {
-            block_get(proc, expr_idx).push(IRStmt::Goto(follow_idx));
-            proc.blocks.add_edge(expr_idx, follow_idx, ());
+            block_get(proc, expr_idx).push(IRStmt::Goto(backtrack_idx));
+            proc.blocks.add_edge(expr_idx, backtrack_idx, ());
         }
     }
 
@@ -51,11 +47,9 @@ pub fn block_for_push(
         block_idx,
         &f.params,
         &f.condition,
+        Some(ret_idx),
         expr_mod,
-        &ExprModArgs {
-            block: &f.block,
-            ret_idx,
-        },
+        &f.block,
         proc,
         shared_proc,
         cfg,

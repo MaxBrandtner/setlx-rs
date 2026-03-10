@@ -1,0 +1,13 @@
+match (@test(2)) {
+	case a: print(a);
+}
+
+match (@test(2)) {
+	case @test(1): print("test");
+	case @test(2): print("some");
+}
+
+match (parse("t(1,2)")) {
+	case t(a,b,c): print("$t$ $a$ $b$ $c$");
+	case t(a,b): print("$t$ $a$ $b$");
+}

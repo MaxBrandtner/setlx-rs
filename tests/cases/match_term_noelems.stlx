@@ -1,0 +1,4 @@
+match (@test()) {
+	case @test(): print("hi");
+	default: print("no");
+}

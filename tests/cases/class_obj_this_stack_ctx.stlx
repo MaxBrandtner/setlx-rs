@@ -1,0 +1,10 @@
+class a() {c := procedure () {
+	cache := 3;
+	this.cache := 2;
+	print(cache);
+	return cache;
+	};
+}
+b := a();
+print(b.c());
+print(b.cache);

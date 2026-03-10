@@ -1,0 +1,6 @@
+class a() {
+	this.gStateCount := -1;
+}
+
+c := a();
+print(c.gStateCount);

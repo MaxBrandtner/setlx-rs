@@ -1,0 +1,52 @@
+// Check wether there is a path from x to y in R and compute it.
+findPath := procedure(x, y, r) {
+    p := { [x] };
+    while (true) {
+        oldP  := p;
+        p     := p + pathProduct(p, r);
+        found := { l : l in p | l[-1] == y };
+        if (found != {}) {
+            return arb(found);
+        }
+        if (p == oldP) {
+            return;
+        }
+    }
+};
+// The product call add(p,q) computes the sum of the lists p and q.
+// The last point of p has to be the first point of q.
+join := procedure(p, q) {
+    return p + q[2..];
+};
+pathProduct := procedure(p, q) {
+    return { join(x,y) : x in p, y in q | x[-1] == y[1] && noCycle(x,y) };
+};
+noCycle := procedure(l1, l2) {
+    return #({ x : x in l1 } * { x : x in l2 }) == 1;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+//                                                                            //
+// Problem specific code                                                      //
+//                                                                            //
+////////////////////////////////////////////////////////////////////////////////
+
+problem := procedure(S) {
+    return !("farmer" in S)                                     && 
+           ({"goat", "cabbage"} <= S || {"wolf", "goat"} <= S);
+};
+
+All := { "farmer", "wolf", "goat", "cabbage" };
+P   := { S : S in pow(All) | !problem(S) && !problem(All - S) };
+R1  := { [S, S - B]: S in P, B in pow(S)
+                   | S - B in P && "farmer" in B && #B <= 2
+       };
+R2  := { [y, x] : [x, y] in R1 };
+R   := R1 + R2;
+
+start := All;
+goal  := {};
+
+path  := findPath(start, goal, R);
+
+print(path);

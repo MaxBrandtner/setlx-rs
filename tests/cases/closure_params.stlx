@@ -1,0 +1,7 @@
+a := closure (h) {
+	print(h);
+};
+b := [h] |=>print(h);
+
+a(1);
+b(1);

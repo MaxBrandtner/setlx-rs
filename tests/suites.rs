@@ -1,10 +1,14 @@
+use gag::BufferRedirect;
 use git2::Repository;
+use pretty_assertions::assert_eq;
 use serde_derive::Deserialize;
 use setlx_rs::{
-    cli::InputOpts, cst::cst_parse, ir::def::IRCfg, ir::lower::CSTIRLower, setlx_parse,
+    cli::InputOpts, cst::cst_parse, interp::exec::exec, ir::def::IRCfg, ir::lower::CSTIRLower,
+    setlx_parse,
 };
 use std::fs;
-use std::path::Path;
+use std::io::Read;
+use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
 #[derive(Debug, Deserialize)]
@@ -13,6 +17,7 @@ struct SuiteData {
     git: String,
     dir: String,
     blacklist: Vec<String>,
+    references: Option<String>,
 }
 
 fn suite_data_fetch() -> Vec<SuiteData> {
@@ -43,7 +48,12 @@ fn suites_clone(suites: &Vec<SuiteData>, test_path: &Path) {
     }
 }
 
-fn suites_test_tmpl(suites: &Vec<SuiteData>, test_path: &Path, step: &str, f: fn(&str)) {
+fn suites_test_tmpl(
+    suites: &Vec<SuiteData>,
+    test_path: &Path,
+    step: &str,
+    f: fn(&str, &Path, &str, &Option<String>),
+) {
     for i in suites {
         eprintln!("PROJECT: {}", i.name);
         let mut run_path = test_path.join(&i.name);
@@ -57,6 +67,7 @@ fn suites_test_tmpl(suites: &Vec<SuiteData>, test_path: &Path, step: &str, f: fn
                     && e.path().extension().and_then(|ext| ext.to_str()) == Some("stlx")
             })
         {
+            let abs_pathname = j.path().to_str().unwrap().to_string();
             let rel_path = j.path().strip_prefix(&run_path).unwrap();
             let pathname = rel_path.to_str().unwrap().to_string();
 
@@ -67,23 +78,47 @@ fn suites_test_tmpl(suites: &Vec<SuiteData>, test_path: &Path, step: &str, f: fn
             eprintln!("{step}: {pathname}");
             let bytes = fs::read(j.path()).unwrap();
             let contents = String::from_utf8_lossy(&bytes);
-            f(&contents);
+            f(&abs_pathname, &run_path, &contents, &i.references);
         }
     }
 }
 
-fn step_parse(content: &str) {
+fn step_parse(_: &str, _: &Path, content: &str, _: &Option<String>) {
     setlx_parse::BlockParser::new().parse(content).unwrap();
 }
 
-fn step_validate(content: &str) {
+fn step_validate(_: &str, _: &Path, content: &str, _: &Option<String>) {
     cst_parse(content, &InputOpts::none());
 }
 
-fn step_lower(content: &str) {
+fn step_lower(_: &str, _: &Path, content: &str, _: &Option<String>) {
     let opts = InputOpts::none();
     let cst = cst_parse(content, &opts);
     IRCfg::from_cst(&cst, &opts);
+}
+
+fn step_exec(pathname: &str, prefix: &Path, content: &str, references: &Option<String>) {
+    let opts = InputOpts::none();
+    let cst = cst_parse(content, &opts);
+    let ir = IRCfg::from_cst(&cst, &opts);
+
+    let mut buf = BufferRedirect::stdout().unwrap();
+    exec(ir, &opts, content.to_string());
+
+    let mut output = String::new();
+    buf.read_to_string(&mut output).unwrap();
+
+    let ref_path = if let Some(r) = references {
+        Path::new(r).join(Path::new(pathname).strip_prefix(prefix).unwrap())
+    } else {
+        PathBuf::from(format!("{pathname}.reference"))
+    };
+
+    eprintln!("reference_path: {}", ref_path.display());
+
+    if let Ok(reference) = fs::read_to_string(ref_path) {
+        assert_eq!(reference, output);
+    }
 }
 
 #[test]
@@ -100,4 +135,5 @@ fn suites_main() {
     suites_test_tmpl(&suites, test_path, "parsing", step_parse);
     suites_test_tmpl(&suites, test_path, "validating", step_validate);
     suites_test_tmpl(&suites, test_path, "lowering", step_lower);
+    suites_test_tmpl(&suites, test_path, "exec", step_exec);
 }

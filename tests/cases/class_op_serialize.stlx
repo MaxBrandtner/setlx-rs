@@ -1,0 +1,6 @@
+class a() {
+	f_str := procedure () { return "hi"; };
+}
+
+b := a();
+print(b+"test");

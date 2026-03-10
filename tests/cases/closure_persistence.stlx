@@ -1,0 +1,18 @@
+try {
+	execute("a:=1;");
+}
+try {
+	execute("b:=[]|=>print(a);");
+}
+try {
+	execute("a:=2;");
+}
+try {
+	execute("b();");
+}
+try {
+	execute("b();");
+}
+try {
+	execute("b();");
+}

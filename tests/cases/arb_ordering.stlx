@@ -1,0 +1,6 @@
+a := {[{"wolf"}], [{"cabbage"}]};
+print(arb(a));
+b := {1,3};
+print(arb(b));
+c := [1,3];
+print(arb(c));

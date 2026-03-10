@@ -1,0 +1,312 @@
+\chapter{Illustrative Examples}
+
+\section{Reference Counting in jq}
+\label{sec:jq-refcount}
+
+jq is a \acf{DSL} to query and transform JSON data. A jq expression describes a transformation declaratively. The runtime is responsible for deciding how to apply it efficiently to the underlying data. Internally, jq represents JSON values as reference-counted heap objects, which allows the runtime to avoid unnecessary copies when a value has only one owned, and to perform \acf{COW} when a shared value must be mutated. The figure \ref{fig:jv-c-refcount} traces through the execution of the expression \ref{fig:jq-example-expression} at the C API level, illustrating how reference counts are incremented as values are accessed and how \ac{COW} is triggered when a shared object needs to be updated.
+
+\begin{figure}[H]
+\begin{lstlisting}
+.items[2].price |= . + 10
+\end{lstlisting}
+    \caption{jq example expression}
+    \label{fig:jq-example-expression}
+\end{figure}
+
+\begin{figure}[H]
+\begin{lstlisting}
+    jv root = jv_parse("{\"items\":[{\"price\":1},{\"price\":2},{\"price\":3}]}"); // refcount = 1
+
+    jv items = jv_object_get(root, jv_string("items")); // items.refs += 1 (2)
+    jv item2 = jv_array_get(items, 2); // refcount += 1
+    jv price = jv_object_get(item2, jv_string("price")); // items[2].refs += 1 (2)
+    jv new_price = jv_number(jv_number_value(price) + 10); // refcount = 1
+
+    /* item[2].refs > 1 -> triggers COW:
+          - allocates a fresh object,
+          - copies all other fields,
+          - items[2].refs -= 1 (1) */
+    jv new_item2 = jv_object_set(item2, jv_string("price"), new_price);
+
+    /* items.refs > 1 -> triggers COW:
+          - fresh array buffer,
+          - copies all other fields
+          - items.refs -= 1 (1) */
+    jv new_items = jv_array_set(items, 2, new_item2);
+
+    /* root.refs == 1
+       -> items updated inplace
+       -> items.refs -= 1 (0) -> (invalidate underlying memory) */
+
+    jv new_root = jv_object_set(root, jv_string("items"), new_items);
+
+    printf("updated: %s\n", jv_string_value(jv_dump_string(new_root, 0)));
+
+    /* decrement counters of all values
+       -> [...].refs -= 1 (0) -> (invalidate underlying memory) */
+    jv_free(root);
+    jv_free(items);
+    jv_free(item2);
+    jv_free(price);
+    jv_free(new_price);
+    jv_free(new_item2);
+    jv_free(new_items);
+    jv_free(new_root);
+\end{lstlisting}
+\caption{jq reference counting example}
+\label{fig:jv-c-refcount}
+\end{figure}
+\FloatBarrier
+
+\section{Procedure \ac{IR} Example}
+\label{sec:proc-ir}
+
+\FloatBarrier
+
+\begin{table}[h]
+	\centering
+    \caption{Procedure \ac{IR} example}
+	\renewcommand{\arraystretch}{1}
+	\begin{tabular}{ |p{7cm}|p{7cm}| }
+		\hline
+\begin{lstlisting}
+a := procedure() {
+    exit;
+};
+\end{lstlisting}
+&
+\begin{lstlisting}
+_proc0(){
+//end block
+<bb0>:
+	_ := stack_frame_pop();
+	return t0;
+
+//start block
+<bb1>:
+	_ := stack_frame_add();
+	_ := exit();
+	unreachable;
+}
+
+//main
+_proc1(){
+//end block
+<bb0>:
+	_ := stack_frame_pop();
+	return t0;
+
+//start block
+<bb1>:
+	_ := stack_frame_add();
+	t1 := stack_add("a");
+	t2 := _proc0 /* procedure */;
+	*t1 := t2;
+	goto <bb2>
+
+<bb2>:
+	t0 := om;
+	goto <bb0>
+
+}
+\end{lstlisting}
+\\
+		\hline
+	\end{tabular}
+\end{table}
+
+\FloatBarrier
+
+Some instructions such as \ac{AST} nodes or source annotations have been removed for the sake of simplicity. Though it may not be visible in this example, internally the basic blocks and procedures exist in graphs and are connected through edges in the respective graphs. As the procedure \texttt{a} is defined in the main procedure, an edge exists between the two procedure nodes. As is apparent in this example not all nodes must necessarily be reachable. Dead-code elimination passes should theoretically remove these redundant blocks.
+
+\section{Heap Mutable Borrowing}
+\label{sec:heap-borrow-mut}
+
+\begin{table}[H]
+	\centering
+	\renewcommand{\arraystretch}{1}
+	\begin{tabular}{ |p{4cm}|p{10cm}| }
+		\hline
+\begin{lstlisting}
+a := 1;
+a := 2;
+\end{lstlisting}
+&
+\begin{lstlisting}
+t1 := stack_add("a");
+t2 := 1;             // heap 0 (on immediate heap)
+t3 := *t1;           // mutable borrow of stack a
+                     // (safe as no other borrows exist)
+_ := invalidate(t3); // invalidate prior value of a
+                     // a is undefined
+                     // -> effectively a noop
+*t1 := t2;           // a = 1;
+                     // -> a takes ownership of 1 (heap 0)
+                     // -> heap 0 removed from immediate heap
+t4 := 2;             // heap 1 (on immediate heap)
+t5 := *t1;           // mutable borrow of stack a
+                     // (safe as no other borrows exist)
+_ := invalidate(t5); // invalidate prior value of a
+                     // -> invalidate heap 0
+*t1 := t4;           // a = 2;
+                     // -> a takes ownership of 2 (heap 1)
+                     // -> heap 1 removed from immediate heap
+\end{lstlisting}
+\\
+		\hline
+	\end{tabular}
+    \caption{Heap Memory Management \ac{IR} Example}
+\end{table}
+
+In this example \texttt{t1} is a pointer to the stack value \texttt{a}. As will be discussed later, stack values always own the memory they reference. Note that prior to the reassignment of \texttt{a} the owned value is invalidated. Invalidation and reassignment must occur as one transaction that cannot cause an exception. Otherwise, use-after-free errors might occur.
+
+\section{Stack Closure Example}
+\label{sec:stack-closure}
+
+\begin{table}[H]
+	\centering
+    \caption{Stack Closure \ac{IR} Example}
+	\renewcommand{\arraystretch}{1}
+	\begin{tabular}{ |p{4cm}|p{10cm}| }
+		\hline
+\begin{lstlisting}
+b := 1;
+a := closure () {
+	print(b);
+};
+b := 3;
+a();
+\end{lstlisting}
+&
+\begin{lstlisting}[basicstyle=\ttfamily\tiny]
+// main
+_proc1(){
+<bb2>:
+    _ = stack_frame_add(); // create new stack frame
+    goto <bb1>
+
+<bb1>:
+    t1:<ptr> = stack_add("b");  // push b onto stack
+    t2:<ptr> = stack_add("a");  // push a onto stack
+
+    *t1 = 1;  // b := 1
+    // capture snapshot of current frame: {b=1, a=om, predefined procedures}
+    t18:<stack_image> = stack_copy();
+    // closure carries snapshot
+    // closure is accessible across stack boundaries
+    t6:<proc> = procedure_new(_proc0, om, t18, true);
+    *t2 = t6;  // a := closure
+
+    // b := 3 only affects the live stack, not the snapshot
+    *t1 = 3;
+    // call a() passes the snapshot as params[0]
+    // retrieve embedded stack image from closure
+    t28 = procedure_stack_get(t26);
+    t30:<ptr> = &t28;
+    // pass snapshot as first param
+    _ = list_push(t25, t30);
+    t31 = t26(t25);
+    _ := invalidate(t31);
+    _ := stack_frame_pop();
+    return om;
+}
+
+// closure
+_proc0(){ 
+<bb1>:
+    // create new stack frame
+    _ := stack_frame_add();
+    t1:<ptr> = params[0];
+    t2:<stack_image> = *t1;
+    // restore snapshot into current frame: b=1 visible here
+    _ = stack_frame_restore(t2);
+    // resolves to b=1 from restored snapshot
+    t5:<ptr> = stack_get_or_new("b");
+    // resolves to predefined procedure print
+    // copy of print exists in current stack frame
+    t6:<ptr> = stack_get_or_new("print");
+    t4 := list_new();
+    _ := list_push(t4, t5);
+    t12 = t6(t4);
+    // invalidate restored snapshot
+    _ := stack_frame_pop();
+    return om;
+}
+\end{lstlisting}
+\\
+		\hline
+	\end{tabular}
+\end{table}
+
+When \texttt{proc1} begins, \texttt{stack\_copy()} captures a snapshot of all currently reachable stack entries after \texttt{b := 1} is assigned, including \texttt{b:=1}, \texttt{a:=om}, and all predefined procedures. The snapshot is embedded into the closure with a cross-frame flag. When \texttt{b} is subsequently reassigned to $3$, the snapshot is unaffected. When \texttt{a()} is called, the snapshot is retrieved and passed as the first parameter. Inside \texttt{proc0}, \texttt{stack\_frame\_restore()} pushes copies of all snapshot entries into the current frame, making \texttt{b:=1} and \texttt{print} visible as ordinary stack variables. When the closure returns, \texttt{stack\_frame\_pop()} discards all restored entries at once.
+
+\section{Class \ac{IR} Example}
+
+\FloatBarrier
+\begin{table}[h]
+    \centering
+    \caption{Class \ac{IR} Example}
+    \renewcommand{\arraystretch}{1}
+    \begin{tabular}{ |p{4cm}|p{10cm}| }
+        \hline
+\begin{lstlisting}
+class a() {
+  sum := procedure(other) {
+    return 2;
+  };
+}
+b := a();
+print(b + 1);
+\end{lstlisting}
+&
+\begin{lstlisting}
+// constructor
+_proc1(){
+<bb0>:
+    _ = stack_frame_add();
+    t0:<ptr> = stack_add("sum");
+    *t0 = procedure_new(_proc0, om, true);
+    t1:<list> = stack_frame_save();
+    t2:<obj> = object_new("a", t1);
+    return t2;
+}
+
+// static procedure (empty static block)
+_proc2(){
+<bb0>:
+    _ = stack_frame_add();
+    t0:<list> = stack_frame_save();
+    return t0;
+}
+
+// main
+_proc3(){
+<bb1>:
+    _ = stack_frame_add();
+    t1:<ptr> = stack_add("b");
+    _ = class_add("a", _proc2, _proc1);
+    t4:<ptr> = stack_get_or_new("a");
+    t5 = *t4;
+    t10 = t5(t3);        // call constructor
+    *t1 = t10;           // b := object{sum=proc}
+    t23 = *t1;           // load b
+    t31 = object_get(t23, "sum"); // overload for +
+    t29:<ptr> = &t23;
+    t36:<list> = list_new();
+    _ = list_push(t36, &t24);    // push 1 as argument
+    _ = stack_frame_add();
+    _ = stack_alias("this", t29, true);
+    // alias all members of b by name (cross-frame)
+    t44 = t33(t36);      // call sum(1) -> 2
+    _ = stack_frame_pop();
+    // print(2) omitted
+    return om;
+}
+\end{lstlisting}
+        \\
+        \hline
+    \end{tabular}
+\end{table}
+\FloatBarrier
+
+The class is registered via \texttt{class\_add}, giving it priority over the stack. Calling \texttt{a()} invokes the constructor, which saves its frame as an object containing \texttt{sum}. When \texttt{b + 1} is evaluated, \texttt{sum} is found as the overload for \texttt{+}, a new frame is pushed with \texttt{b} aliased as \texttt{this} and all its members aliased by name, and \texttt{sum(1)} is called. The frame is torn down on return.

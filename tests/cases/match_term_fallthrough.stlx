@@ -1,0 +1,5 @@
+match (1) {
+	case @some(a): print("hi");
+	case n | isInteger(n): print(n);
+	default: print("dfl");
+}

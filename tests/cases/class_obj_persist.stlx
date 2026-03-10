@@ -1,0 +1,3 @@
+class a() { static { y := 1;}}
+b := a();
+print(b.y);

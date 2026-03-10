@@ -1,0 +1,8 @@
+//a := 1;
+b := procedure(rw a) {
+	a := 2;
+};
+
+b(a);
+print(a);
+b(1);

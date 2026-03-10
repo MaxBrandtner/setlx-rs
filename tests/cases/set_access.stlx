@@ -1,0 +1,7 @@
+transition := {
+	[1, 1]
+};
+
+print(transition[1]);
+print(transition[2]);
+print(transition);

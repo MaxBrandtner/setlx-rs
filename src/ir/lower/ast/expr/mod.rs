@@ -8,6 +8,7 @@ use crate::builtin::*;
 use crate::ir::def::*;
 use crate::ir::lower::ast::block_cst_block_push;
 use crate::ir::lower::ast::stmt::params::{block_cst_iter_params_push, block_cst_params_push};
+use crate::ir::lower::expr::term_expr::tterm_ast_tag_get;
 use crate::ir::lower::util::{block_get, tmp_var_new};
 
 use collection::block_cst_collection_push;
@@ -54,8 +55,8 @@ pub fn block_cst_expr_push(
     target: IRTarget,
     proc: &mut IRProcedure,
 ) {
-    match expr {
-        CSTExpression::Lambda(l) => {
+    match &expr.kind {
+        CSTExpressionKind::Lambda(l) => {
             /* t_params := // collection
              * t_expr := // expr
              * target := ast_node_new("lambda", t_params, l.is_closure, t_expr);
@@ -76,7 +77,7 @@ pub fn block_cst_expr_push(
                 ]),
             }));
         }
-        CSTExpression::Op(o) => {
+        CSTExpressionKind::Op(o) => {
             /* t_lhs := //expr
              * t_rhs := //expr
              * target := ast_node_new(o.op.to_string(), t_lhs, t_rhs);
@@ -97,7 +98,7 @@ pub fn block_cst_expr_push(
                 ]),
             }));
         }
-        CSTExpression::UnaryOp(o) => {
+        CSTExpressionKind::UnaryOp(o) => {
             /* t_expr := // expr
              * target := ast_node_new(o.op.to_string(), t_expr);
              */
@@ -114,7 +115,7 @@ pub fn block_cst_expr_push(
                 ]),
             }));
         }
-        CSTExpression::Procedure(p) => {
+        CSTExpressionKind::Procedure(p) => {
             /* t_params := // params
              * t_list_param := // list_param
              * t_block := // block
@@ -156,13 +157,25 @@ pub fn block_cst_expr_push(
                 ]),
             }));
         }
-        CSTExpression::Call(c) => {
-            /* t_params := // exprs
+        CSTExpressionKind::Call(c) => {
+            /* t_name := ast_node_new("callName", c.name);
+             * t_params := // exprs
              * t_rest_param := // expr
-             * target := ast_node_new("call", c.name, t_params, t_rest_param);
+             * target := ast_node_new("call", t_name, t_params, t_rest_param);
              */
+            let t_name = tmp_var_new(proc);
             let t_params = tmp_var_new(proc);
             let t_rest_param = tmp_var_new(proc);
+
+            block_get(proc, block_idx).push(IRStmt::Assign(IRAssign {
+                target: IRTarget::Variable(t_name),
+                types: IRType::AST,
+                source: IRValue::BuiltinProc(BuiltinProc::AstNodeNew),
+                op: IROp::NativeCall(vec![
+                    IRValue::String("callName".to_string()),
+                    IRValue::String(c.name.to_string()),
+                ]),
+            }));
 
             block_cst_expr_vec_push(&c.params, block_idx, IRTarget::Variable(t_params), proc);
             if let Some(rp) = &c.rest_param {
@@ -182,32 +195,78 @@ pub fn block_cst_expr_push(
                 source: IRValue::BuiltinProc(BuiltinProc::AstNodeNew),
                 op: IROp::NativeCall(vec![
                     IRValue::String("call".to_string()),
-                    IRValue::String(c.name.to_string()),
+                    IRValue::Variable(t_name),
                     IRValue::Variable(t_params),
                     IRValue::Variable(t_rest_param),
                 ]),
             }));
         }
-        CSTExpression::Term(t) => {
-            /* t_params := //exprs
-             * target := ast_node_new("term" || "tterm", t.name, t_params);
+        CSTExpressionKind::Term(t) => {
+            /* t_term := term_new(name, t.params.len(), t.is_tterm);
+             * t_term_addr := &t_term;
+             * // for (idx, i) in t.params.iter().enumerate() {
+             *  t_term_i_ptr := t_term_addr[idx + 1];
+             *  *t_term_i_ptr := // expr i
+             * // }
+             * target := t_term;
              */
-            let t_params = tmp_var_new(proc);
+            let t_term = tmp_var_new(proc);
+            let t_term_addr = tmp_var_new(proc);
 
-            block_cst_expr_vec_push(&t.params, block_idx, IRTarget::Variable(t_params), proc);
+            block_get(proc, block_idx).extend(vec![
+                if t.is_tterm
+                    && let Some(tag) = tterm_ast_tag_get(&t.name, t.params.len())
+                {
+                    IRStmt::Assign(IRAssign {
+                        target: IRTarget::Variable(t_term),
+                        types: IRType::AST,
+                        source: IRValue::BuiltinProc(BuiltinProc::AstNodeNewSized),
+                        op: IROp::NativeCall(vec![
+                            IRValue::String(tag),
+                            IRValue::Number(t.params.len().into()),
+                        ]),
+                    })
+                } else {
+                    IRStmt::Assign(IRAssign {
+                        target: IRTarget::Variable(t_term),
+                        types: IRType::TERM | IRType::TTERM,
+                        source: IRValue::BuiltinProc(BuiltinProc::TermNew),
+                        op: IROp::NativeCall(vec![
+                            IRValue::String(t.name.to_string()),
+                            IRValue::Number(t.params.len().into()),
+                            IRValue::Bool(t.is_tterm),
+                        ]),
+                    })
+                },
+                IRStmt::Assign(IRAssign {
+                    target: IRTarget::Variable(t_term_addr),
+                    types: IRType::PTR,
+                    source: IRValue::Variable(t_term),
+                    op: IROp::PtrAddress,
+                }),
+            ]);
+
+            t.params.iter().enumerate().for_each(|(idx, i)| {
+                let t_term_i_ptr = tmp_var_new(proc);
+
+                block_get(proc, block_idx).push(IRStmt::Assign(IRAssign {
+                    target: IRTarget::Variable(t_term_i_ptr),
+                    types: IRType::PTR,
+                    source: IRValue::Variable(t_term_addr),
+                    op: IROp::AccessArray(IRValue::Number((idx + 1).into())),
+                }));
+
+                block_cst_expr_push(i, block_idx, IRTarget::Deref(t_term_i_ptr), proc);
+            });
 
             block_get(proc, block_idx).push(IRStmt::Assign(IRAssign {
                 target,
-                types:IRType::AST,
-                source: IRValue::BuiltinProc(BuiltinProc::AstNodeNew),
-                op: IROp::NativeCall(vec![
-                    IRValue::String(if t.is_tterm { "tterm" } else { "term" }.to_string()),
-                    IRValue::String(t.name.to_string()),
-                    IRValue::Variable(t_params),
-                ]),
+                types: IRType::TERM | IRType::TTERM,
+                source: IRValue::Variable(t_term),
+                op: IROp::Assign,
             }));
         }
-        CSTExpression::Variable(v) => {
+        CSTExpressionKind::Variable(v) => {
             // target := ast_node_new("var", v);
             block_get(proc, block_idx).push(IRStmt::Assign(IRAssign {
                 target,
@@ -219,7 +278,7 @@ pub fn block_cst_expr_push(
                 ]),
             }));
         }
-        CSTExpression::Accessible(a) => {
+        CSTExpressionKind::Accessible(a) => {
             /* t_head := // expr
              * t_body := // exprs
              * target := ast_node_new("accessible", t_head, t_body);
@@ -241,7 +300,7 @@ pub fn block_cst_expr_push(
                 ]),
             }));
         }
-        CSTExpression::String(s) => {
+        CSTExpressionKind::String(s) => {
             // target := ast_node_new("string", s);
             block_get(proc, block_idx).push(IRStmt::Assign(IRAssign {
                 target,
@@ -253,7 +312,7 @@ pub fn block_cst_expr_push(
                 ]),
             }));
         }
-        CSTExpression::Literal(l) => {
+        CSTExpressionKind::Literal(l) => {
             // target := ast_node_new("literal", l);
             block_get(proc, block_idx).push(IRStmt::Assign(IRAssign {
                 target,
@@ -265,43 +324,37 @@ pub fn block_cst_expr_push(
                 ]),
             }));
         }
-        CSTExpression::Bool(b) => {
-            // target := ast_node_new("bool", b);
+        CSTExpressionKind::Bool(b) => {
+            // target := b;
             block_get(proc, block_idx).push(IRStmt::Assign(IRAssign {
                 target,
-                types: IRType::AST,
-                source: IRValue::BuiltinProc(BuiltinProc::AstNodeNew),
-                op: IROp::NativeCall(vec![IRValue::String("bool".to_string()), IRValue::Bool(*b)]),
+                types: IRType::BOOL,
+                source: IRValue::Bool(*b),
+                op: IROp::Assign,
             }));
         }
-        CSTExpression::Double(d) => {
-            // target := ast_node_new("double", d);
+        CSTExpressionKind::Double(d) => {
+            // target := d;
             block_get(proc, block_idx).push(IRStmt::Assign(IRAssign {
                 target,
-                types: IRType::AST,
-                source: IRValue::BuiltinProc(BuiltinProc::AstNodeNew),
-                op: IROp::NativeCall(vec![
-                    IRValue::String("double".to_string()),
-                    IRValue::Double(*d),
-                ]),
+                types: IRType::DOUBLE,
+                source: IRValue::Double(*d),
+                op: IROp::Assign,
             }));
         }
-        CSTExpression::Number(n) => {
-            // target := ast_node_new("number", n);
+        CSTExpressionKind::Number(n) => {
+            // target := n;
             block_get(proc, block_idx).push(IRStmt::Assign(IRAssign {
                 target,
-                types: IRType::AST,
-                source: IRValue::BuiltinProc(BuiltinProc::AstNodeNew),
-                op: IROp::NativeCall(vec![
-                    IRValue::String("number".to_string()),
-                    IRValue::Number(n.clone()),
-                ]),
+                types: IRType::NUMBER,
+                source: IRValue::Number(n.clone()),
+                op: IROp::Assign,
             }));
         }
-        CSTExpression::Collection(c) => {
+        CSTExpressionKind::Collection(c) => {
             block_cst_collection_push(c, block_idx, target, proc);
         }
-        CSTExpression::Matrix(m) => {
+        CSTExpressionKind::Matrix(m) => {
             /* t_list := list_new(m.len());
              *
              * t_i := // exprs
@@ -311,14 +364,12 @@ pub fn block_cst_expr_push(
              */
             let t_list = tmp_var_new(proc);
 
-            block_get(proc, block_idx).push(
-                IRStmt::Assign(IRAssign {
-                    target: IRTarget::Variable(t_list),
-                    types: IRType::LIST,
-                    source: IRValue::BuiltinProc(BuiltinProc::ListNew),
-                    op: IROp::NativeCall(vec![IRValue::Number(m.len().into())]),
-                })
-            );
+            block_get(proc, block_idx).push(IRStmt::Assign(IRAssign {
+                target: IRTarget::Variable(t_list),
+                types: IRType::LIST,
+                source: IRValue::BuiltinProc(BuiltinProc::ListNew),
+                op: IROp::NativeCall(vec![IRValue::Number(m.len().into())]),
+            }));
 
             m.iter().for_each(|i| {
                 let t_i = tmp_var_new(proc);
@@ -329,10 +380,7 @@ pub fn block_cst_expr_push(
                     target: IRTarget::Ignore,
                     types: IRType::UNDEFINED,
                     source: IRValue::BuiltinProc(BuiltinProc::ListPush),
-                    op: IROp::NativeCall(vec![
-                        IRValue::Variable(t_list),
-                        IRValue::Variable(t_i),
-                    ]),
+                    op: IROp::NativeCall(vec![IRValue::Variable(t_list), IRValue::Variable(t_i)]),
                 }));
             });
 
@@ -346,7 +394,7 @@ pub fn block_cst_expr_push(
                 ]),
             }));
         }
-        CSTExpression::Vector(v) => {
+        CSTExpressionKind::Vector(v) => {
             /* t_exprs := // exprs
              * target := ast_node_new("vector", t_exprs);
              */
@@ -363,7 +411,7 @@ pub fn block_cst_expr_push(
                 ]),
             }));
         }
-        CSTExpression::Quantifier(q) => {
+        CSTExpressionKind::Quantifier(q) => {
             /* t_iter := // params
              * t_cond := // expr
              * target := ast_node_new(q.kind.to_string(), t_iter, t_cond);
@@ -384,7 +432,7 @@ pub fn block_cst_expr_push(
                 ]),
             }));
         }
-        CSTExpression::Om => {
+        CSTExpressionKind::Om => {
             // target := ast_node_new("om");
             block_get(proc, block_idx).push(IRStmt::Assign(IRAssign {
                 target,
@@ -393,7 +441,7 @@ pub fn block_cst_expr_push(
                 op: IROp::NativeCall(vec![IRValue::String("om".to_string())]),
             }));
         }
-        CSTExpression::Ignore => {
+        CSTExpressionKind::Ignore => {
             // target := ast_node_new("ignore");
             block_get(proc, block_idx).push(IRStmt::Assign(IRAssign {
                 target,
@@ -401,6 +449,9 @@ pub fn block_cst_expr_push(
                 source: IRValue::BuiltinProc(BuiltinProc::AstNodeNew),
                 op: IROp::NativeCall(vec![IRValue::String("ignore".to_string())]),
             }));
+        }
+        CSTExpressionKind::Serialize(e) => {
+            block_cst_expr_push(e, block_idx, target, proc);
         }
     }
 }
@@ -411,7 +462,7 @@ pub fn block_cst_expr_vec_push(
     target: IRTarget,
     proc: &mut IRProcedure,
 ) {
-    /* t_list := list_new(exprs.len());
+    /* t_list := list_new();
      *
      * t_expr := // expr
      * _ := list_push(t_list, t_expr);
@@ -420,14 +471,12 @@ pub fn block_cst_expr_vec_push(
      */
     let t_list = tmp_var_new(proc);
 
-    block_get(proc, block_idx).push(
-        IRStmt::Assign(IRAssign {
-            target: IRTarget::Variable(t_list),
-            types: IRType::LIST,
-            source: IRValue::BuiltinProc(BuiltinProc::ListNew),
-            op: IROp::NativeCall(vec![IRValue::Number(exprs.len().into())]),
-        })
-    );
+    block_get(proc, block_idx).push(IRStmt::Assign(IRAssign {
+        target: IRTarget::Variable(t_list),
+        types: IRType::LIST,
+        source: IRValue::BuiltinProc(BuiltinProc::ListNew),
+        op: IROp::NativeCall(Vec::new()),
+    }));
 
     exprs.iter().for_each(|i| {
         let t_expr = tmp_var_new(proc);
@@ -437,10 +486,7 @@ pub fn block_cst_expr_vec_push(
             target: IRTarget::Ignore,
             types: IRType::UNDEFINED,
             source: IRValue::BuiltinProc(BuiltinProc::ListPush),
-            op: IROp::NativeCall(vec![
-                IRValue::Variable(t_list),
-                IRValue::Variable(t_expr),
-            ]),
+            op: IROp::NativeCall(vec![IRValue::Variable(t_list), IRValue::Variable(t_expr)]),
         }));
     });
 

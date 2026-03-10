@@ -1,0 +1,1058 @@
+mkdir -p build/chapters
+mkdir -p build/appendix
+latexmk -pdf -outdir=build -jobname=writeup main.tex
+Rc files read:
+  .latexmkrc
+Latexmk: This is Latexmk, John Collins, 27 Dec. 2024. Version 4.86a.
+No existing .aux file, so I'll make a simple one, and require run of *latex.
+Latexmk: applying rule 'pdflatex'...
+Rule 'pdflatex':  Reasons for rerun
+Category 'other':
+  Rerun of 'pdflatex' forced or previously required:
+    Reason or flag: 'Initial setup'
+
+------------
+Run number 1 of rule 'pdflatex'
+------------
+------------
+Running 'pdflatex  -recorder --jobname="writeup" -output-directory="build"  "main.tex"'
+------------
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2026/dev/Arch Linux) (preloaded format=pdflatex)
+ restricted \write18 enabled.
+entering extended mode
+(./main.tex
+LaTeX2e <2024-11-01> patch level 2
+L3 programming layer <2025-01-18>
+(./config.tex (/usr/share/texmf-dist/tex/latex/koma-script/scrreprt.cls
+Document Class: scrreprt 2024/10/24 v3.43 KOMA-Script document class (report)
+(/usr/share/texmf-dist/tex/latex/koma-script/scrkbase.sty
+(/usr/share/texmf-dist/tex/latex/koma-script/scrbase.sty
+(/usr/share/texmf-dist/tex/latex/koma-script/scrlfile.sty
+(/usr/share/texmf-dist/tex/latex/koma-script/scrlfile-hook.sty
+(/usr/share/texmf-dist/tex/latex/koma-script/scrlogo.sty)))
+(/usr/share/texmf-dist/tex/latex/graphics/keyval.sty)))
+(/usr/share/texmf-dist/tex/latex/koma-script/tocbasic.sty)
+(/usr/share/texmf-dist/tex/latex/koma-script/scrsize11pt.clo)
+(/usr/share/texmf-dist/tex/latex/koma-script/typearea.sty))
+(/usr/share/texmf-dist/tex/latex/geometry/geometry.sty
+(/usr/share/texmf-dist/tex/generic/iftex/ifvtex.sty
+(/usr/share/texmf-dist/tex/generic/iftex/iftex.sty)))
+(/usr/share/texmf-dist/tex/latex/biblatex/biblatex.sty
+(/usr/share/texmf-dist/tex/generic/pdftexcmds/pdftexcmds.sty
+(/usr/share/texmf-dist/tex/generic/infwarerr/infwarerr.sty)
+(/usr/share/texmf-dist/tex/generic/ltxcmds/ltxcmds.sty))
+(/usr/share/texmf-dist/tex/latex/etoolbox/etoolbox.sty)
+(/usr/share/texmf-dist/tex/latex/kvoptions/kvoptions.sty
+(/usr/share/texmf-dist/tex/latex/kvsetkeys/kvsetkeys.sty))
+(/usr/share/texmf-dist/tex/latex/logreq/logreq.sty
+(/usr/share/texmf-dist/tex/latex/logreq/logreq.def))
+(/usr/share/texmf-dist/tex/latex/base/ifthen.sty)
+(/usr/share/texmf-dist/tex/latex/url/url.sty)
+(/usr/share/texmf-dist/tex/latex/biblatex/blx-dm.def)
+(/usr/share/texmf-dist/tex/latex/biblatex/blx-compat.def)
+(/usr/share/texmf-dist/tex/latex/biblatex/biblatex.def)
+(/usr/share/texmf-dist/tex/latex/biblatex/bbx/numeric-comp.bbx
+(/usr/share/texmf-dist/tex/latex/biblatex/bbx/numeric.bbx
+(/usr/share/texmf-dist/tex/latex/biblatex/bbx/standard.bbx)))
+(/usr/share/texmf-dist/tex/latex/biblatex/cbx/numeric-comp.cbx)
+(/usr/share/texmf-dist/tex/latex/biblatex/biblatex.cfg)
+(/usr/share/texmf-dist/tex/latex/l3kernel/expl3.sty
+(/usr/share/texmf-dist/tex/latex/l3backend/l3backend-pdftex.def))
+(/usr/share/texmf-dist/tex/latex/biblatex/blx-case-expl3.sty
+(/usr/share/texmf-dist/tex/latex/l3packages/xparse/xparse.sty)))
+(/usr/share/texmf-dist/tex/latex/glossaries/base/glossaries.sty
+(/usr/share/texmf-dist/tex/latex/xkeyval/xkeyval.sty
+(/usr/share/texmf-dist/tex/generic/xkeyval/xkeyval.tex
+(/usr/share/texmf-dist/tex/generic/xkeyval/xkvutils.tex)))
+(/usr/share/texmf-dist/tex/latex/mfirstuc/mfirstuc.sty)
+(/usr/share/texmf-dist/tex/latex/xfor/xfor.sty)
+(/usr/share/texmf-dist/tex/latex/amsmath/amsgen.sty)
+(/usr/share/texmf-dist/tex/latex/datatool/datatool-base.sty
+(/usr/share/texmf-dist/tex/latex/amsmath/amsmath.sty
+For additional information on amsmath, use the `?' option.
+(/usr/share/texmf-dist/tex/latex/amsmath/amstext.sty)
+(/usr/share/texmf-dist/tex/latex/amsmath/amsbsy.sty)
+(/usr/share/texmf-dist/tex/latex/amsmath/amsopn.sty))
+(/usr/share/texmf-dist/tex/latex/tracklang/tracklang.sty
+(/usr/share/texmf-dist/tex/generic/tracklang/tracklang.tex))
+(/usr/share/texmf-dist/tex/latex/datatool/datatool-l3fp.def)
+(/usr/share/texmf-dist/tex/latex/datatool/datatool-utf8.ldf))
+(/usr/share/texmf-dist/tex/latex/glossaries/styles/glossary-hypernav.sty)
+(/usr/share/texmf-dist/tex/latex/glossaries/styles/glossary-list.sty)
+(/usr/share/texmf-dist/tex/latex/glossaries/styles/glossary-long.sty
+(/usr/share/texmf-dist/tex/latex/tools/longtable.sty))
+(/usr/share/texmf-dist/tex/latex/glossaries/styles/glossary-super.sty
+(/usr/share/texmf-dist/tex/latex/supertabular/supertabular.sty))
+(/usr/share/texmf-dist/tex/latex/glossaries/styles/glossary-tree.sty))
+(/usr/share/texmf-dist/tex/latex/csquotes/csquotes.sty
+(/usr/share/texmf-dist/tex/latex/csquotes/csquotes.def)
+(/usr/share/texmf-dist/tex/latex/csquotes/csquotes.cfg))
+(/usr/share/texmf-dist/tex/latex/listings/listings.sty
+(/usr/share/texmf-dist/tex/latex/listings/lstpatch.sty)
+(/usr/share/texmf-dist/tex/latex/listings/lstmisc.sty)
+(/usr/share/texmf-dist/tex/latex/listings/listings.cfg))
+(/usr/share/texmf-dist/tex/latex/psnfss/helvet.sty)
+(/usr/share/texmf-dist/tex/latex/setspace/setspace.sty)
+(/usr/share/texmf-dist/tex/latex/acronym/acronym.sty
+(/usr/share/texmf-dist/tex/latex/bigfoot/suffix.sty)
+(/usr/share/texmf-dist/tex/generic/xstring/xstring.sty
+(/usr/share/texmf-dist/tex/generic/xstring/xstring.tex)))
+(/usr/share/texmf-dist/tex/latex/xcolor/xcolor.sty
+(/usr/share/texmf-dist/tex/latex/graphics-cfg/color.cfg)
+(/usr/share/texmf-dist/tex/latex/graphics-def/pdftex.def)
+(/usr/share/texmf-dist/tex/latex/graphics/mathcolor.ltx))
+(/usr/share/texmf-dist/tex/latex/base/inputenc.sty)
+(/usr/share/texmf-dist/tex/latex/hyperref/hyperref.sty
+(/usr/share/texmf-dist/tex/generic/kvdefinekeys/kvdefinekeys.sty)
+(/usr/share/texmf-dist/tex/generic/pdfescape/pdfescape.sty)
+(/usr/share/texmf-dist/tex/latex/hycolor/hycolor.sty)
+(/usr/share/texmf-dist/tex/latex/hyperref/nameref.sty
+(/usr/share/texmf-dist/tex/latex/refcount/refcount.sty)
+(/usr/share/texmf-dist/tex/generic/gettitlestring/gettitlestring.sty))
+(/usr/share/texmf-dist/tex/generic/stringenc/stringenc.sty)
+(/usr/share/texmf-dist/tex/latex/hyperref/pd1enc.def)
+(/usr/share/texmf-dist/tex/generic/intcalc/intcalc.sty)
+(/usr/share/texmf-dist/tex/latex/hyperref/puenc.def)
+
+Package hyperref Warning: Unexpected value `black'
+(hyperref)                of option `colorlinks' instead of
+(hyperref)                `true' or 'false' on input line 4040.
+
+(/usr/share/texmf-dist/tex/generic/bitset/bitset.sty
+(/usr/share/texmf-dist/tex/generic/bigintcalc/bigintcalc.sty))
+(/usr/share/texmf-dist/tex/latex/base/atbegshi-ltx.sty))
+(/usr/share/texmf-dist/tex/latex/hyperref/hpdftex.def
+(/usr/share/texmf-dist/tex/latex/base/atveryend-ltx.sty)
+(/usr/share/texmf-dist/tex/latex/rerunfilecheck/rerunfilecheck.sty
+(/usr/share/texmf-dist/tex/generic/uniquecounter/uniquecounter.sty)))
+(/usr/share/texmf-dist/tex/latex/placeins/placeins.sty)
+(/usr/share/texmf-dist/tex/latex/base/fontenc.sty
+(/usr/share/texmf-dist/tex/latex/psnfss/t1phv.fd))
+(/usr/share/texmf-dist/tex/latex/float/float.sty)
+(/usr/share/texmf-dist/tex/latex/seqsplit/seqsplit.sty)
+(/usr/share/texmf-dist/tex/latex/graphics/graphicx.sty
+(/usr/share/texmf-dist/tex/latex/graphics/graphics.sty
+(/usr/share/texmf-dist/tex/latex/graphics/trig.sty)
+(/usr/share/texmf-dist/tex/latex/graphics-cfg/graphics.cfg)))
+(/usr/share/texmf-dist/tex/latex/booktabs/booktabs.sty)
+(/usr/share/texmf-dist/tex/latex/tools/array.sty)
+(/usr/share/texmf-dist/tex/latex/listings/lstlang1.sty)
+(/usr/share/texmf-dist/tex/latex/listings/lstmisc.sty))
+
+Package biblatex Warning: Load 'inputenc' before biblatex.
+
+
+Package csquotes Warning: Load 'inputenc' before 'csquotes' on input line 3.
+
+(build/writeup.aux)
+*geometry* driver: auto-detecting
+*geometry* detected driver: pdftex
+(/usr/share/texmf-dist/tex/latex/biblatex/lbx/english.lbx)
+No file writeup.bbl.
+(/usr/share/texmf-dist/tex/context/base/mkii/supp-pdf.mkii
+[Loading MPS to PDF converter (version 2006.09.02).]
+) (/usr/share/texmf-dist/tex/latex/epstopdf-pkg/epstopdf-base.sty
+(/usr/share/texmf-dist/tex/latex/latexconfig/epstopdf-sys.cfg))
+(/usr/share/texmf-dist/tex/latex/bookmark/bookmark.sty
+(/usr/share/texmf-dist/tex/latex/bookmark/bkm-pdftex.def))
+(./chapters/frontpage.tex)
+[1{/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map}{/usr/share/texmf-dist/fon
+ts/enc/dvips/base/8r.enc} <build/../assets/dhbw.png (PNG copy)>]
+(./chapters/declaration.tex)
+[2] (./chapters/abstract.tex
+[3]
+[4])
+No file writeup.toc.
+
+[5] (./glossary.tex) (./acronyms.tex
+
+LaTeX Warning: Hyper reference `acro:ABI' on page vi undefined on input line 6.
+
+
+
+LaTeX Warning: Hyper reference `acro:ABI' on page vi undefined on input line 6.
+
+
+
+LaTeX Warning: Hyper reference `acro:ALL' on page vi undefined on input line 7.
+
+
+
+LaTeX Warning: Hyper reference `acro:ALL' on page vi undefined on input line 7.
+
+
+
+LaTeX Warning: Hyper reference `acro:AST' on page vi undefined on input line 8.
+
+
+
+LaTeX Warning: Hyper reference `acro:AST' on page vi undefined on input line 8.
+
+
+
+LaTeX Warning: Hyper reference `acro:BNF' on page vi undefined on input line 9.
+
+
+
+LaTeX Warning: Hyper reference `acro:BNF' on page vi undefined on input line 9.
+
+
+
+LaTeX Warning: Hyper reference `acro:CFG' on page vi undefined on input line 10
+.
+
+
+LaTeX Warning: Hyper reference `acro:CFG' on page vi undefined on input line 10
+.
+
+
+LaTeX Warning: Hyper reference `acro:COW' on page vi undefined on input line 11
+.
+
+
+LaTeX Warning: Hyper reference `acro:COW' on page vi undefined on input line 11
+.
+
+
+LaTeX Warning: Hyper reference `acro:CST' on page vi undefined on input line 12
+.
+
+
+LaTeX Warning: Hyper reference `acro:CST' on page vi undefined on input line 12
+.
+
+
+LaTeX Warning: Hyper reference `acro:DAG' on page vi undefined on input line 13
+.
+
+
+LaTeX Warning: Hyper reference `acro:DAG' on page vi undefined on input line 13
+.
+
+
+LaTeX Warning: Hyper reference `acro:DCE' on page vi undefined on input line 14
+.
+
+
+LaTeX Warning: Hyper reference `acro:DCE' on page vi undefined on input line 14
+.
+
+
+LaTeX Warning: Hyper reference `acro:DFA' on page vi undefined on input line 15
+.
+
+
+LaTeX Warning: Hyper reference `acro:DFA' on page vi undefined on input line 15
+.
+
+
+LaTeX Warning: Hyper reference `acro:DFG' on page vi undefined on input line 16
+.
+
+
+LaTeX Warning: Hyper reference `acro:DFG' on page vi undefined on input line 16
+.
+
+
+LaTeX Warning: Hyper reference `acro:DSL' on page vi undefined on input line 17
+.
+
+
+LaTeX Warning: Hyper reference `acro:DSL' on page vi undefined on input line 17
+.
+
+
+LaTeX Warning: Hyper reference `acro:EBNF' on page vi undefined on input line 1
+8.
+
+
+LaTeX Warning: Hyper reference `acro:EBNF' on page vi undefined on input line 1
+8.
+
+
+LaTeX Warning: Hyper reference `acro:HIR' on page vi undefined on input line 19
+.
+
+
+LaTeX Warning: Hyper reference `acro:HIR' on page vi undefined on input line 19
+.
+
+
+LaTeX Warning: Hyper reference `acro:IR' on page vi undefined on input line 20.
+
+
+
+LaTeX Warning: Hyper reference `acro:IR' on page vi undefined on input line 20.
+
+
+
+LaTeX Warning: Hyper reference `acro:ISA' on page vi undefined on input line 21
+.
+
+
+LaTeX Warning: Hyper reference `acro:ISA' on page vi undefined on input line 21
+.
+
+
+LaTeX Warning: Hyper reference `acro:JIT' on page vi undefined on input line 22
+.
+
+
+LaTeX Warning: Hyper reference `acro:JIT' on page vi undefined on input line 22
+.
+
+
+LaTeX Warning: Hyper reference `acro:LICM' on page vi undefined on input line 2
+3.
+
+
+LaTeX Warning: Hyper reference `acro:LICM' on page vi undefined on input line 2
+3.
+
+
+LaTeX Warning: Hyper reference `acro:LSRA' on page vi undefined on input line 2
+4.
+
+
+LaTeX Warning: Hyper reference `acro:LSRA' on page vi undefined on input line 2
+4.
+
+
+LaTeX Warning: Hyper reference `acro:MIR' on page vi undefined on input line 25
+.
+
+
+LaTeX Warning: Hyper reference `acro:MIR' on page vi undefined on input line 25
+.
+
+
+LaTeX Warning: Hyper reference `acro:NFA' on page vi undefined on input line 26
+.
+
+
+LaTeX Warning: Hyper reference `acro:NFA' on page vi undefined on input line 26
+.
+
+
+LaTeX Warning: Hyper reference `acro:PRE' on page vi undefined on input line 27
+.
+
+
+LaTeX Warning: Hyper reference `acro:PRE' on page vi undefined on input line 27
+.
+
+
+LaTeX Warning: Hyper reference `acro:RAII' on page vi undefined on input line 2
+8.
+
+
+LaTeX Warning: Hyper reference `acro:RAII' on page vi undefined on input line 2
+8.
+
+
+LaTeX Warning: Hyper reference `acro:SCBP' on page vi undefined on input line 2
+9.
+
+
+LaTeX Warning: Hyper reference `acro:SCBP' on page vi undefined on input line 2
+9.
+
+
+LaTeX Warning: Hyper reference `acro:SSA' on page vi undefined on input line 30
+.
+
+
+LaTeX Warning: Hyper reference `acro:SSA' on page vi undefined on input line 30
+.
+
+
+LaTeX Warning: Hyper reference `acro:VM' on page vi undefined on input line 31.
+
+
+
+LaTeX Warning: Hyper reference `acro:VM' on page vi undefined on input line 31.
+
+
+)
+[6]
+No file writeup.lof.
+
+[7]
+No file writeup.lot.
+
+[8] (./chapters/introduction.tex
+chapter 1.
+
+LaTeX Warning: Citation 'setlx-tutorial' on page 1 undefined on input line 5.
+
+
+LaTeX Warning: Citation 'schwartz-setl' on page 1 undefined on input line 5.
+
+
+LaTeX Warning: Citation 'antlr4' on page 1 undefined on input line 9.
+
+
+LaTeX Warning: Citation 'lalrpop' on page 1 undefined on input line 9.
+
+
+[1]
+
+LaTeX Warning: Citation 'rust' on page 2 undefined on input line 17.
+
+)
+[2] (./chapters/background.tex
+chapter 2.
+
+Package acronym Warning: Acronym AST is not defined on input line 5.
+
+
+Package acronym Warning: Acronym AST is not defined on input line 5.
+
+
+Package acronym Warning: Acronym IR is not defined on input line 5.
+
+
+Package acronym Warning: Acronym IR is not defined on input line 5.
+
+
+Package acronym Warning: Acronym CST is not defined on input line 7.
+
+
+Package acronym Warning: Acronym CST is not defined on input line 7.
+
+
+Package acronym Warning: Acronym CST is not defined on input line 11.
+
+
+LaTeX Warning: Citation 'tomassetti2017' on page 3 undefined on input line 11.
+
+
+Package acronym Warning: Acronym CST is not defined on input line 15.
+
+
+LaTeX Warning: Citation 'tomassetti2017' on page 3 undefined on input line 15.
+
+
+LaTeX Warning: Citation 'greenlaw1998' on page 3 undefined on input line 15.
+
+
+LaTeX Warning: Citation 'hanus2020' on page 3 undefined on input line 15.
+
+
+LaTeX Warning: Citation 'kegler2014' on page 3 undefined on input line 17.
+
+
+[3]
+
+Package acronym Warning: Acronym DFA is not defined on input line 20.
+
+
+Package acronym Warning: Acronym DFA is not defined on input line 20.
+
+
+Package acronym Warning: Acronym CST is not defined on input line 20.
+
+
+Package acronym Warning: Acronym AST is not defined on input line 20.
+
+
+LaTeX Warning: Citation 'suresh2019' on page 4 undefined on input line 20.
+
+
+Package acronym Warning: Acronym NFA is not defined on input line 24.
+
+
+Package acronym Warning: Acronym NFA is not defined on input line 24.
+
+
+Package acronym Warning: Acronym AST is not defined on input line 28.
+
+
+LaTeX Warning: Citation 'dragon-book' on page 4 undefined on input line 32.
+
+
+Overfull \hbox (18.06874pt too wide) in paragraph at lines 32--33
+\T1/phv/m/n/10.95 nary or unary as-sign-ments, con-di-tional or un-con-di-tiona
+l jumps, and pro-ce-dure calls [[]].
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+
+[4]
+
+Package acronym Warning: Acronym IR is not defined on input line 46.
+
+
+LaTeX Warning: Citation 'dragon-book' on page 5 undefined on input line 46.
+
+
+Package acronym Warning: Acronym CFG is not defined on input line 83.
+
+
+Package acronym Warning: Acronym CFG is not defined on input line 83.
+
+
+Package acronym Warning: Acronym IR is not defined on input line 83.
+
+
+Package acronym Warning: Acronym CFG is not defined on input line 83.
+
+
+Package acronym Warning: Acronym CFG is not defined on input line 83.
+
+
+LaTeX Warning: Citation 'chong-cfg' on page 5 undefined on input line 83.
+
+
+[5{/usr/share/texmf-dist/fonts/enc/dvips/cm-super/cm-super-t1.enc}
+pdfTeX warning (ext4): destination with the same identifier (name{figure.2.1}) 
+has been already used, duplicate ignored
+<argument> ...shipout:D \box_use:N \l_shipout_box 
+                                                  \__shipout_drop_firstpage_...
+l.85 A
+       \acf{DFG} encodes the flow of data within the code. It stores which i...
+
+pdfTeX warning (ext4): destination with the same identifier (name{table.2.1}) h
+as been already used, duplicate ignored
+<argument> ...shipout:D \box_use:N \l_shipout_box 
+                                                  \__shipout_drop_firstpage_...
+l.85 A
+       \acf{DFG} encodes the flow of data within the code. It stores which i...
+]
+
+Package acronym Warning: Acronym DFG is not defined on input line 85.
+
+
+Package acronym Warning: Acronym DFG is not defined on input line 85.
+
+
+Package acronym Warning: Acronym DFG is not defined on input line 85.
+
+
+Package acronym Warning: Acronym DFG is not defined on input line 85.
+
+
+LaTeX Warning: Citation 'gibbons-dfg' on page 6 undefined on input line 85.
+
+
+Package acronym Warning: Acronym CFG is not defined on input line 87.
+
+
+Package acronym Warning: Acronym CFG is not defined on input line 87.
+
+
+Package acronym Warning: Acronym IR is not defined on input line 87.
+
+
+Package acronym Warning: Acronym SSA is not defined on input line 87.
+
+
+Package acronym Warning: Acronym SSA is not defined on input line 87.
+
+
+Package acronym Warning: Acronym SSA is not defined on input line 89.
+
+
+Package acronym Warning: Acronym SSA is not defined on input line 89.
+
+
+Package acronym Warning: Acronym SSA is not defined on input line 91.
+
+
+LaTeX Warning: Citation 'dragon-book' on page 6 undefined on input line 91.
+
+
+Package acronym Warning: Acronym SSA is not defined on input line 91.
+
+
+Package acronym Warning: Acronym SSA is not defined on input line 95.
+
+
+Package acronym Warning: Acronym SSA is not defined on input line 95.
+
+
+Package acronym Warning: Acronym CFG is not defined on input line 137.
+
+
+Package acronym Warning: Acronym SSA is not defined on input line 137.
+
+
+LaTeX Warning: Citation 'sarkar-ssa' on page 6 undefined on input line 137.
+
+
+LaTeX Warning: Citation 'sarkar-ssa' on page 6 undefined on input line 137.
+
+
+LaTeX Warning: Citation 'klara-ssa' on page 6 undefined on input line 137.
+
+
+[6
+pdfTeX warning (ext4): destination with the same identifier (name{table.2.2}) h
+as been already used, duplicate ignored
+<argument> ...shipout:D \box_use:N \l_shipout_box 
+                                                  \__shipout_drop_firstpage_...
+l.138 
+      ]
+
+LaTeX Warning: Citation 'dragon-book' on page 7 undefined on input line 139.
+
+
+Package acronym Warning: Acronym IR is not defined on input line 143.
+
+
+Package acronym Warning: Acronym CFG is not defined on input line 143.
+
+
+Package acronym Warning: Acronym SSA is not defined on input line 143.
+
+
+Package acronym Warning: Acronym CFG is not defined on input line 143.
+
+
+Package acronym Warning: Acronym SSA is not defined on input line 147.
+
+
+Package acronym Warning: Acronym SSA is not defined on input line 147.
+
+
+Package acronym Warning: Acronym SSA is not defined on input line 149.
+
+
+LaTeX Warning: Citation 'dragon-book' on page 7 undefined on input line 149.
+
+
+[7
+pdfTeX warning (ext4): destination with the same identifier (name{table.2.3}) h
+as been already used, duplicate ignored
+<argument> ...shipout:D \box_use:N \l_shipout_box 
+                                                  \__shipout_drop_firstpage_...
+l.181 \textbf{Value range propagation}
+                                       does not change the code directly but...
+]
+
+Package acronym Warning: Acronym SSA is not defined on input line 181.
+
+(/usr/share/texmf-dist/tex/latex/psnfss/ts1phv.fd)
+
+LaTeX Warning: Citation 'dragon-book' on page 8 undefined on input line 201.
+
+
+Package acronym Warning: Acronym DCE is not defined on input line 203.
+
+
+Package acronym Warning: Acronym DCE is not defined on input line 203.
+
+
+Package acronym Warning: Acronym DCE is not defined on input line 207.
+
+
+Package acronym Warning: Acronym DCE is not defined on input line 207.
+
+
+Overfull \hbox (1.8283pt too wide) in paragraph at lines 207--208
+\T1/phv/b/n/10.95 DCE! \T1/phv/m/n/10.95 ([])[] is an op-ti-miza-tion that re-m
+oves un-nec-es-sary as-sign-ments, un-reach-able branches,
+
+[8
+pdfTeX warning (ext4): destination with the same identifier (name{figure.2.2}) 
+has been already used, duplicate ignored
+<argument> ...shipout:D \box_use:N \l_shipout_box 
+                                                  \__shipout_drop_firstpage_...
+l.209 A
+       n assignment whose result is never used can be removed. This includes...
+]
+
+Package acronym Warning: Acronym SSA is not defined on input line 209.
+
+
+Package acronym Warning: Acronym SSA is not defined on input line 209.
+
+
+Package acronym Warning: Acronym DCE is not defined on input line 211.
+
+
+LaTeX Warning: Citation 'dragon-book' on page 9 undefined on input line 211.
+
+
+Package acronym Warning: Acronym CFG is not defined on input line 215.
+
+
+[9]
+
+Package acronym Warning: Acronym LSRA is not defined on input line 226.
+
+
+Package acronym Warning: Acronym LSRA is not defined on input line 226.
+
+
+Package acronym Warning: Acronym LSRA is not defined on input line 228.
+
+
+Package acronym Warning: Acronym CFG is not defined on input line 228.
+
+
+Package acronym Warning: Acronym LSRA is not defined on input line 228.
+
+
+Package acronym Warning: Acronym LSRA is not defined on input line 228.
+
+
+Package acronym Warning: Acronym SCBP is not defined on input line 230.
+
+
+Package acronym Warning: Acronym SCBP is not defined on input line 230.
+
+
+Package acronym Warning: Acronym LSRA is not defined on input line 230.
+
+
+Package acronym Warning: Acronym LSRA is not defined on input line 230.
+
+
+Package acronym Warning: Acronym SCBP is not defined on input line 230.
+
+
+Package acronym Warning: Acronym LSRA is not defined on input line 232.
+
+
+Package acronym Warning: Acronym LSRA is not defined on input line 232.
+
+
+LaTeX Warning: Citation 'schwarz-register' on page 10 undefined on input line 2
+32.
+
+
+LaTeX Warning: Citation 'poletto1999linear' on page 10 undefined on input line 
+232.
+
+
+[10]
+
+Package acronym Warning: Acronym COW is not defined on input line 244.
+
+
+Package acronym Warning: Acronym COW is not defined on input line 244.
+
+
+LaTeX Warning: Reference `sec:jq-refcount' on page 11 undefined on input line 2
+48.
+
+
+LaTeX Warning: Citation 'ungar1984generation' on page 11 undefined on input lin
+e 255.
+
+
+[11]
+
+Package acronym Warning: Acronym RAII is not defined on input line 257.
+
+
+Package acronym Warning: Acronym RAII is not defined on input line 257.
+
+
+Package acronym Warning: Acronym RAII is not defined on input line 261.
+
+
+[12]
+
+LaTeX Warning: Citation 'jung2017rustbelt' on page 13 undefined on input line 2
+65.
+
+
+LaTeX Warning: Citation 'stroustrup2015resource' on page 13 undefined on input 
+line 265.
+
+
+Package acronym Warning: Acronym RAII is not defined on input line 267.
+
+
+Package acronym Warning: Acronym RAII is not defined on input line 271.
+
+
+[13]
+
+Package acronym Warning: Acronym ABI is not defined on input line 276.
+
+
+Package acronym Warning: Acronym ABI is not defined on input line 276.
+
+
+LaTeX Warning: Citation 'itanium-abi-eh' on page 14 undefined on input line 276
+.
+
+
+LaTeX Warning: Citation 'llvm-eh' on page 14 undefined on input line 276.
+
+
+LaTeX Warning: Citation 'itanium-abi-eh' on page 14 undefined on input line 278
+.
+
+
+LaTeX Warning: Citation 'llvm-eh' on page 14 undefined on input line 278.
+
+
+LaTeX Warning: Citation 'itanium-abi-eh' on page 14 undefined on input line 282
+.
+
+
+LaTeX Warning: Citation 'llvm-eh' on page 14 undefined on input line 282.
+
+
+[14]
+
+Package acronym Warning: Acronym JIT is not defined on input line 284.
+
+
+Package acronym Warning: Acronym JIT is not defined on input line 284.
+
+
+LaTeX Warning: Citation 'llvm-jitlink' on page 15 undefined on input line 284.
+
+
+Package acronym Warning: Acronym AST is not defined on input line 292.
+
+
+Package acronym Warning: Acronym IR is not defined on input line 294.
+
+
+LaTeX Warning: Citation 'ball-interpreter-in-go' on page 15 undefined on input 
+line 294.
+
+
+Package acronym Warning: Acronym VM is not defined on input line 297.
+
+
+Package acronym Warning: Acronym VM is not defined on input line 297.
+
+
+Package acronym Warning: Acronym IR is not defined on input line 297.
+
+
+Package acronym Warning: Acronym AST is not defined on input line 297.
+
+
+[15]
+
+Package acronym Warning: Acronym AST is not defined on input line 308.
+
+
+LaTeX Warning: Citation 'dragon-book' on page 16 undefined on input line 316.
+
+)
+[16] (./chapters/implementation.tex
+chapter 3.
+
+Package acronym Warning: Acronym CST is not defined on input line 3.
+
+
+Package acronym Warning: Acronym CST is not defined on input line 3.
+
+
+Package acronym Warning: Acronym AST is not defined on input line 5.
+
+
+Package acronym Warning: Acronym ALL is not defined on input line 5.
+
+
+Package acronym Warning: Acronym ALL is not defined on input line 5.
+
+
+LaTeX Warning: Citation 'lalrpop-crates-io' on page 17 undefined on input line 
+5.
+
+
+Underfull \hbox (badness 4303) in paragraph at lines 5--5
+  [][][]\T1/phv/m/n/9 ^^P  De-spite its name, LAL-R-POP in fact uses LR(1) by d
+e-fault (though you can opt for LALR(1)),
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+
+[17]
+
+Package acronym Warning: Acronym CST is not defined on input line 102.
+
+
+Package acronym Warning: Acronym CST is not defined on input line 102.
+
+
+[18
+pdfTeX warning (ext4): destination with the same identifier (name{table.3.1}) h
+as been already used, duplicate ignored
+<argument> ...shipout:D \box_use:N \l_shipout_box 
+                                                  \__shipout_drop_firstpage_...
+l.103 
+      
+pdfTeX warning (ext4): destination with the same identifier (name{table.3.2}) h
+as been already used, duplicate ignored
+<argument> ...shipout:D \box_use:N \l_shipout_box 
+                                                  \__shipout_drop_firstpage_...
+l.103 
+      ]
+
+Package acronym Warning: Acronym CST is not defined on input line 118.
+
+
+Package acronym Warning: Acronym CST is not defined on input line 118.
+
+
+Package acronym Warning: Acronym AST is not defined on input line 118.
+
+
+Package acronym Warning: Acronym AST is not defined on input line 118.
+
+
+[19]
+Underfull \hbox (badness 1852) in paragraph at lines 130--131
+[]|\T1/phv/m/n/10.95 Parse com-pound strings con-tain-ing in-line ex-pres-sions
+
+
+Package acronym Warning: Acronym CST is not defined on input line 132.
+
+
+LaTeX Warning: Citation 'ariadne-source' on page 20 undefined on input line 143
+.
+
+
+Package acronym Warning: Acronym AST is not defined on input line 147.
+
+
+Package acronym Warning: Acronym IR is not defined on input line 147.
+
+
+Package acronym Warning: Acronym VM is not defined on input line 147.
+
+
+Package acronym Warning: Acronym JIT is not defined on input line 147.
+
+
+Package acronym Warning: Acronym IR is not defined on input line 147.
+
+
+Package acronym Warning: Acronym IR is not defined on input line 149.
+
+
+Package acronym Warning: Acronym IR is not defined on input line 153.
+
+
+[20
+pdfTeX warning (ext4): destination with the same identifier (name{table.3.3}) h
+as been already used, duplicate ignored
+<argument> ...shipout:D \box_use:N \l_shipout_box 
+                                                  \__shipout_drop_firstpage_...
+l.154 
+      ]
+[21
+pdfTeX warning (ext4): destination with the same identifier (name{table.3.4}) h
+as been already used, duplicate ignored
+<argument> ...shipout:D \box_use:N \l_shipout_box 
+                                                  \__shipout_drop_firstpage_...
+l.181 
+      ]
+
+LaTeX Warning: Reference `sec:proc-ir' on page 22 undefined on input line 182.
+
+
+[22]
+
+Package acronym Warning: Acronym IR is not defined on input line 240.
+
+
+Package acronym Warning: Acronym RAII is not defined on input line 240.
+
+
+Package acronym Warning: Acronym CST is not defined on input line 240.
+
+
+Package acronym Warning: Acronym IR is not defined on input line 240.
+
+
+Package acronym Warning: Acronym IR is not defined on input line 240.
+
+
+[23
+pdfTeX warning (ext4): destination with the same identifier (name{table.3.5}) h
+as been already used, duplicate ignored
+<argument> ...shipout:D \box_use:N \l_shipout_box 
+                                                  \__shipout_drop_firstpage_...
+l.241 
+      ]
+
+Package acronym Warning: Acronym IR is not defined on input line 243.
+
+
+Package acronym Warning: Acronym IR is not defined on input line 252.
+
+
+LaTeX Warning: Reference `sec:heap-borrow-mut' on page 24 undefined on input li
+ne 252.
+
+
+Package acronym Warning: Acronym IR is not defined on input line 255.
+
+
+[24]
+
+Package acronym Warning: Acronym IR is not defined on input line 276.
+
+
+Package acronym Warning: Acronym IR is not defined on input line 276.
+
+! Undefined control sequence.
+\SQSPL@scan ->\futurelet \SQSPL@next 
+                                     \SQSPL@scani 
+l.281 T
+       hese builtins manually remove or add an object from the immediate hea...
+
+? 
+! Emergency stop.
+\SQSPL@scan ->\futurelet \SQSPL@next 
+                                     \SQSPL@scani 
+l.281 T
+       hese builtins manually remove or add an object from the immediate hea...
+
+!  ==> Fatal error occurred, no output PDF file produced!
+Transcript written on build/writeup.log.
+Latexmk: Getting log file 'build/writeup.log'
+Latexmk: Examining 'build/writeup.fls'
+Latexmk: Examining 'build/writeup.log'
+Latexmk: Missing bbl file 'build/writeup.bbl' in following:
+ No file writeup.bbl.
+Latexmk: Missing input file 'writeup.toc' (or dependence on it) from following:
+  No file writeup.toc.
+Latexmk: Missing input file 'writeup.lof' (or dependence on it) from following:
+  No file writeup.lof.
+Latexmk: Missing input file 'writeup.lot' (or dependence on it) from following:
+  No file writeup.lot.
+Latexmk: Incomplete (and hence corrupt) bcf file 'build/writeup.bcf'
+Latexmk: Bibliography file(s) from .bcf file:
+  bibliography.bib
+Latexmk: ========== Incomplete bcf_file 'build/writeup.bcf'.
+  I'll rename the file to 'build/writeup.bcf-SAVE-ERROR'.
+  I'll rename the bbl file to 'build/writeup.bbl-SAVE-ERROR',
+  in case the incomplete bcf file was a result of error in
+  'pdflatex' caused by an error in the bbl file.
+Latexmk: Summary of warnings from last run of *latex:
+  Latex failed to resolve 3 reference(s)
+  Latex failed to resolve 39 citation(s)
+Latexmk: ====Undefined refs and citations with line #s in .tex file:
+  Citation 'setlx-tutorial' on page 1 undefined on input line 5
+  Citation 'schwartz-setl' on page 1 undefined on input line 5
+  Citation 'antlr4' on page 1 undefined on input line 9
+  Citation 'lalrpop' on page 1 undefined on input line 9
+  Citation 'rust' on page 2 undefined on input line 17
+  Citation 'tomassetti2017' on page 3 undefined on input line 11
+  Citation 'tomassetti2017' on page 3 undefined on input line 15
+ And 35 more --- see log file 'build/writeup.log'
+Latexmk: Errors, so I did not complete making targets
+Collected error summary (may duplicate other messages):
+  pdflatex: Command for 'pdflatex' gave return code 1
+      Refer to 'build/writeup.log' and/or above output for details
+
+Latexmk: Sometimes, the -f option can be used to get latexmk
+  to try to force complete processing.
+  But normally, you will need to correct the file(s) that caused the
+  error, and then rerun latexmk.
+  In some cases, it is best to clean out generated files before rerunning
+  latexmk after you've corrected the files.
+make: *** [Makefile:11: build] Error 12

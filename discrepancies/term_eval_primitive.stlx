@@ -1,0 +1,2 @@
+print(evalTerm(parse("1")));
+evalTerm(parseStatements("print(2);print(3);"));

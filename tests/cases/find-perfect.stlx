@@ -1,0 +1,17 @@
+perfect := procedure(n) {
+    return +/ { x : x in {1 .. n-1} | n % x == 0 } == n;
+};    
+findPerfect := procedure(limit) {
+    n := 1;
+    while (n < limit) {
+        if (perfect(n)) {
+            if (n % 2 == 0) {
+                print(n);
+            } else {
+                print("Heureka: Odd perfect number $n$ found!");
+            }
+        } 
+        n := n + 1;
+    }
+};
+findPerfect(1000);

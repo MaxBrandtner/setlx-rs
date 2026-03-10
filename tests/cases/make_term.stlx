@@ -1,0 +1,11 @@
+t := parse("!true");
+f := fct(t);
+print(f);
+a := args(t);
+out := makeTerm(f, a);
+print(out);
+print(makeTerm("@@@@not", [true]));
+print(makeTerm("@@@not", [true]));
+print(makeTerm("@@not", [true]));
+print(makeTerm("@not", [true]));
+print(makeTerm("not", [true]));

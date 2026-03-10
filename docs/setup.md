@@ -1,31 +1,17 @@
-# Compile
-
-```bash
-cargo build
-```
-
-# Testing
-
-```bash
-crago test -- --nocapture # view debug info
-cargo test                # only view debug info on failure
-```
-
-# Debug
-
-```bash
-cargo run -- -fdump-all input.stlx        # debug build
-dot -Tpng input-cst-tree.dot -o input.png
-```
-
 # Install
 
-```
+Compile `setlx-rs`  and install the binary into you Cargo bin directory:
+
+```bash
 cargo install --path=.
 ```
 
-# Run
+Ensure `~/.cargo/bin` is in you PATH.
+
+# Run the Installed Version
 
 ```bash
-setlx-rs input.stlx     # installed build
+setlx-rs --help     # view usage information
+setx-rs             # launch the interactive shell
+setlx-rs input.stlx # execute a setlx program
 ```

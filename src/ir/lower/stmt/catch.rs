@@ -131,6 +131,8 @@ fn catch_block_new(
     }
 
     /* t_exception := stack_add(c.exception);
+     * *t_exception := exception_val;
+     * _ := exception_reset();
      * goto <catch_main_block>
      */
     let catch_block = if let Some(exception) = exception_var {
@@ -141,12 +143,34 @@ fn catch_block_new(
                 source: IRValue::BuiltinProc(BuiltinProc::StackAdd),
                 op: IROp::NativeCall(vec![IRValue::String(exception.to_string())]),
             }),
+            IRStmt::Assign(IRAssign {
+                target: IRTarget::Deref(t_exception),
+                types: IRTypes!("any"),
+                source: IRValue::BuiltinVar(BuiltinVar::ExceptionVal),
+                op: IROp::Assign,
+            }),
+            IRStmt::Assign(IRAssign {
+                target: IRTarget::Ignore,
+                types: IRType::UNDEFINED,
+                source: IRValue::BuiltinProc(BuiltinProc::ExceptionReset),
+                op: IROp::NativeCall(Vec::new()),
+            }),
             IRStmt::Goto(catch_main_block),
         ]);
         proc.blocks.add_edge(o, catch_main_block, ());
         o
     } else {
-        catch_main_block
+        let o = proc.blocks.add_node(vec![
+            IRStmt::Assign(IRAssign {
+                target: IRTarget::Ignore,
+                types: IRType::UNDEFINED,
+                source: IRValue::BuiltinProc(BuiltinProc::ExceptionReset),
+                op: IROp::NativeCall(Vec::new()),
+            }),
+            IRStmt::Goto(catch_main_block),
+        ]);
+        proc.blocks.add_edge(o, catch_main_block, ());
+        o
     };
 
     /* tmp := EXCEPTION_KIND == 1
@@ -174,6 +198,13 @@ fn catch_block_new(
     o
 }
 
+/// Emits IR for a try-catch statement, advancing `block_idx` past the statement.
+///
+/// The try body is wrapped in a try region. Catch branches are matched against
+/// the exception kind: `catch` handles user exceptions, `catchLng` handles
+/// internal exceptions, and `finally` handles both. Unmatched exceptions are
+/// rethrown. The exception value is pushed onto the stack under the catch
+/// variable name for the duration of the catch body.
 pub fn block_try_push(
     t: &CSTTryCatch,
     block_idx: &mut NodeIndex,
@@ -184,15 +215,15 @@ pub fn block_try_push(
     shared_proc: &mut IRSharedProc,
     cfg: &mut IRCfg,
 ) {
-    let try_next_idx = proc.blocks.add_node(vec![IRStmt::TryEnd]);
+    let next_idx = proc.blocks.add_node(Vec::new());
     let try_ret_idx = proc
         .blocks
-        .add_node(vec![IRStmt::TryEnd, IRStmt::Goto(ret_idx)]);
+        .add_node(vec![IRStmt::TryEnd(ret_idx)]);
     proc.blocks.add_edge(try_ret_idx, ret_idx, ());
     let try_continue_idx = if let Some(continue_idx_val) = continue_idx {
         let o = proc
             .blocks
-            .add_node(vec![IRStmt::TryEnd, IRStmt::Goto(continue_idx_val)]);
+            .add_node(vec![IRStmt::TryEnd(continue_idx_val)]);
         proc.blocks.add_edge(o, continue_idx_val, ());
         Some(o)
     } else {
@@ -201,7 +232,7 @@ pub fn block_try_push(
     let try_break_idx = if let Some(break_idx_val) = break_idx {
         let o = proc
             .blocks
-            .add_node(vec![IRStmt::TryEnd, IRStmt::Goto(break_idx_val)]);
+            .add_node(vec![IRStmt::TryEnd(break_idx_val)]);
         proc.blocks.add_edge(o, break_idx_val, ());
         Some(o)
     } else {
@@ -221,8 +252,8 @@ pub fn block_try_push(
     );
 
     if !main_terminated {
-        block_get(proc, main_changed_idx).push(IRStmt::Goto(try_next_idx));
-        proc.blocks.add_edge(main_changed_idx, try_next_idx, ());
+        block_get(proc, main_changed_idx).push(IRStmt::TryEnd(next_idx));
+        proc.blocks.add_edge(main_changed_idx, next_idx, ());
     }
 
     let cst_catch_lng = t
@@ -235,7 +266,7 @@ pub fn block_try_push(
         .find(|&x| matches!(x.kind, CSTCatchKind::Usr) || matches!(x.kind, CSTCatchKind::Final));
 
     /* <rethrow_idx>:
-     * _ := throw(ExceptionVal);
+     * _ := throw(ExceptionKind, ExceptionVal);
      * unreachable;
      */
     let rethrow_idx = proc.blocks.add_node(vec![
@@ -243,7 +274,10 @@ pub fn block_try_push(
             target: IRTarget::Ignore,
             types: IRType::UNDEFINED,
             source: IRValue::BuiltinProc(BuiltinProc::Throw),
-            op: IROp::NativeCall(vec![IRValue::BuiltinVar(BuiltinVar::ExceptionVal)]),
+            op: IROp::NativeCall(vec![
+                IRValue::BuiltinVar(BuiltinVar::ExceptionKind),
+                IRValue::BuiltinVar(BuiltinVar::ExceptionVal),
+            ]),
         }),
         IRStmt::Unreachable,
     ]);
@@ -253,10 +287,10 @@ pub fn block_try_push(
             1,
             Some(&c.exception),
             &c.block,
-            try_next_idx,
-            try_continue_idx,
-            try_break_idx,
-            try_ret_idx,
+            next_idx,
+            continue_idx,
+            break_idx,
+            ret_idx,
             rethrow_idx,
             proc,
             shared_proc,
@@ -273,10 +307,10 @@ pub fn block_try_push(
             0,
             Some(&c.exception),
             &c.block,
-            try_next_idx,
-            try_continue_idx,
-            try_break_idx,
-            try_ret_idx,
+            next_idx,
+            continue_idx,
+            break_idx,
+            ret_idx,
             rethrow_idx,
             proc,
             shared_proc,
@@ -296,9 +330,14 @@ pub fn block_try_push(
         catch: catch_lng_idx,
     }));
 
-    *block_idx = try_next_idx;
+    *block_idx = next_idx;
 }
 
+/// Emits IR for a check statement, advancing `block_idx` past the statement.
+///
+/// The check body is wrapped in a try region that catches backtrack exceptions.
+/// If a backtrack is caught the after-backtrack block is executed, otherwise
+/// control falls through normally.
 pub fn block_check_push(
     c: &CSTCheck,
     block_idx: &mut NodeIndex,
@@ -309,15 +348,15 @@ pub fn block_check_push(
     shared_proc: &mut IRSharedProc,
     cfg: &mut IRCfg,
 ) {
-    let try_next_idx = proc.blocks.add_node(vec![IRStmt::TryEnd]);
+    let next_idx = proc.blocks.add_node(Vec::new());
     let try_ret_idx = proc
         .blocks
-        .add_node(vec![IRStmt::TryEnd, IRStmt::Goto(ret_idx)]);
+        .add_node(vec![IRStmt::TryEnd(ret_idx)]);
     proc.blocks.add_edge(try_ret_idx, ret_idx, ());
     let try_continue_idx = if let Some(continue_idx_val) = continue_idx {
         let o = proc
             .blocks
-            .add_node(vec![IRStmt::TryEnd, IRStmt::Goto(continue_idx_val)]);
+            .add_node(vec![IRStmt::TryEnd(continue_idx_val)]);
         proc.blocks.add_edge(o, continue_idx_val, ());
         Some(o)
     } else {
@@ -326,7 +365,7 @@ pub fn block_check_push(
     let try_break_idx = if let Some(break_idx_val) = break_idx {
         let o = proc
             .blocks
-            .add_node(vec![IRStmt::TryEnd, IRStmt::Goto(break_idx_val)]);
+            .add_node(vec![IRStmt::TryEnd(break_idx_val)]);
         proc.blocks.add_edge(o, break_idx_val, ());
         Some(o)
     } else {
@@ -348,8 +387,8 @@ pub fn block_check_push(
     );
 
     if !main_terminated {
-        block_get(proc, main_changed_idx).push(IRStmt::Goto(try_next_idx));
-        proc.blocks.add_edge(main_changed_idx, try_next_idx, ());
+        block_get(proc, main_changed_idx).push(IRStmt::TryEnd(next_idx));
+        proc.blocks.add_edge(main_changed_idx, next_idx, ());
     }
 
     /* <rethrow_idx>:
@@ -370,10 +409,10 @@ pub fn block_check_push(
         2,
         None,
         &c.after_backtrack,
-        try_next_idx,
-        try_continue_idx,
-        try_break_idx,
-        try_ret_idx,
+        next_idx,
+        continue_idx,
+        break_idx,
+        ret_idx,
         rethrow_idx,
         proc,
         shared_proc,
@@ -390,5 +429,5 @@ pub fn block_check_push(
         catch: catch_idx,
     }));
 
-    *block_idx = try_next_idx;
+    *block_idx = next_idx;
 }

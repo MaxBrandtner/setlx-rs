@@ -51,6 +51,7 @@ pub fn block_if_push(
 
         let mut branch_idx = proc.blocks.add_node(Vec::new());
 
+        //NOTE: cond is a boolean value which doesn't allocate memory 
         block_expr_push(
             &branch.condition,
             &mut current_idx,

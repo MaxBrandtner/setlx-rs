@@ -1,0 +1,2 @@
+print(fct(parse("-1")));
+match (@test(1)) { case @test(a): print(a); }

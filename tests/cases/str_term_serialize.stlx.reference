@@ -1,0 +1,5 @@
+x + "hello"
+"a" + x + "hello"
+test: 1 + 1
+1 + 1 = 2
+1 + 1 + "some"

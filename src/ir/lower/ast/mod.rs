@@ -16,7 +16,7 @@ pub fn block_cst_block_push(
     target: IRTarget,
     proc: &mut IRProcedure,
 ) {
-    /* t_list := list_new(block.len());
+    /* t_list := list_new();
      *
      * t_stmt := //stmt
      * _ := list_push(t_list, t_stmt);
@@ -30,7 +30,7 @@ pub fn block_cst_block_push(
             target: IRTarget::Variable(t_list),
             types: IRType::LIST,
             source: IRValue::BuiltinProc(BuiltinProc::ListNew),
-            op: IROp::NativeCall(vec![IRValue::Number(block.len().into())]),
+            op: IROp::NativeCall(vec![]),
         }),
     );
 

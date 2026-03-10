@@ -23,8 +23,20 @@ use crate::builtin::BuiltinProc;
 use crate::ir::def::*;
 use crate::ir::lower::IRSharedProc;
 use crate::ir::lower::expr::block_expr_push;
-use crate::ir::lower::util::block_get;
+use crate::ir::lower::util::{block_get, tmp_var_new};
 
+/// Compiles a sequence of CST statements into IR, appending to the current block.
+/// Returns `true` if the follow block was terminated (e.g. by a `return`,
+/// `break`, or `continue`), `false` if control falls through normally.
+///
+/// - `block_idx` — the current block being written to; advanced forward as
+///   new blocks are created for control flow
+/// - `cst` — the sequence of CST statements to compile
+/// - `continue_idx` — the block to jump to on a `continue` statement, or
+///   `None` if not inside a loop
+/// - `break_idx` — the block to jump to on a `break` statement, or `None`
+///   if not inside a loop
+/// - `ret_idx` — the block to jump to on a `return` statement
 pub fn block_populate(
     block_idx: &mut NodeIndex,
     cst: &[CSTStatement],
@@ -35,12 +47,23 @@ pub fn block_populate(
     shared_proc: &mut IRSharedProc,
     cfg: &mut IRCfg,
 ) -> bool /* follow block terminated */ {
+    let lhs_old = shared_proc.code_lhs;
+    let rhs_old = shared_proc.code_rhs;
+
     for stmt in cst {
-        match stmt {
-            CSTStatement::Class(c) => {
-                block_class_push(c, block_idx, proc, cfg);
+
+        if !shared_proc.disable_annotations {
+            block_get(proc, *block_idx).push(IRStmt::Annotate(stmt.lhs, stmt.rhs));
+        }
+
+        shared_proc.code_lhs = stmt.lhs;
+        shared_proc.code_rhs = stmt.rhs;
+
+        match &stmt.kind {
+            CSTStatementKind::Class(c) => {
+                block_class_push(c, block_idx, proc, shared_proc, cfg);
             }
-            CSTStatement::Match(m) => {
+            CSTStatementKind::Match(m) => {
                 block_match_push(
                     m,
                     block_idx,
@@ -52,7 +75,7 @@ pub fn block_populate(
                     cfg,
                 );
             }
-            CSTStatement::Scan(s) => {
+            CSTStatementKind::Scan(s) => {
                 block_scan_push(
                     s,
                     block_idx,
@@ -64,7 +87,7 @@ pub fn block_populate(
                     cfg,
                 );
             }
-            CSTStatement::Exit => {
+            CSTStatementKind::Exit => {
                 /* //native call
                  * _ := exit(0);
                  * unreachable;
@@ -80,7 +103,7 @@ pub fn block_populate(
                 ]);
                 return true;
             }
-            CSTStatement::Return(expr) => {
+            CSTStatementKind::Return(expr) => {
                 let ret_var = shared_proc.ret_var;
                 if let Some(expr_val) = &expr.val {
                     let is_owned = block_expr_push(
@@ -101,6 +124,15 @@ pub fn block_populate(
                             op: IROp::NativeCall(vec![IRValue::Variable(ret_var)]),
                         }));
                     }
+
+                    block_get(proc, *block_idx).push(
+                        IRStmt::Assign(IRAssign {
+                            target: IRTarget::Ignore,
+                            types: IRType::UNDEFINED,
+                            source: IRValue::BuiltinProc(BuiltinProc::MarkPersist),
+                            op: IROp::NativeCall(vec![IRValue::Variable(ret_var)]),
+                        })
+                    );
                 } else {
                     // ret := om;
                     block_get(proc, *block_idx).push(IRStmt::Assign(IRAssign {
@@ -116,7 +148,7 @@ pub fn block_populate(
                 proc.blocks.add_edge(*block_idx, ret_idx, ());
                 return true;
             }
-            CSTStatement::If(c) | CSTStatement::Switch(c) => {
+            CSTStatementKind::If(c) | CSTStatementKind::Switch(c) => {
                 block_if_push(
                     c,
                     block_idx,
@@ -128,10 +160,10 @@ pub fn block_populate(
                     cfg,
                 );
             }
-            CSTStatement::For(f) => {
+            CSTStatementKind::For(f) => {
                 block_for_push(f, block_idx, ret_idx, proc, shared_proc, cfg);
             }
-            CSTStatement::While(w) => {
+            CSTStatementKind::While(w) => {
                 block_while_push(
                     w,
                     block_idx,
@@ -141,7 +173,7 @@ pub fn block_populate(
                     cfg,
                 );
             }
-            CSTStatement::DoWhile(w) => {
+            CSTStatementKind::DoWhile(w) => {
                 block_do_while_push(
                     w,
                     block_idx,
@@ -152,7 +184,7 @@ pub fn block_populate(
                 );
                 break;
             }
-            CSTStatement::TryCatch(t) => {
+            CSTStatementKind::TryCatch(t) => {
                 block_try_push(
                     t,
                     block_idx,
@@ -164,7 +196,7 @@ pub fn block_populate(
                     cfg,
                 );
             }
-            CSTStatement::Check(c) => {
+            CSTStatementKind::Check(c) => {
                 block_check_push(
                     c,
                     block_idx,
@@ -176,16 +208,25 @@ pub fn block_populate(
                     cfg,
                 );
             }
-            CSTStatement::Assign(_) => {
+            CSTStatementKind::Assign(_) => {
                 block_assign_push(stmt, block_idx, proc, shared_proc, cfg);
             }
-            CSTStatement::AssignMod(a) => {
+            CSTStatementKind::AssignMod(a) => {
                 block_assign_mod_push(a, block_idx, proc, shared_proc, cfg);
             }
-            CSTStatement::Expression(e) => {
-                block_expr_push(e, block_idx, IRTarget::Ignore, proc, shared_proc, cfg);
+            CSTStatementKind::Expression(e) => {
+                let v = tmp_var_new(proc);
+                let owned = block_expr_push(e, block_idx, IRTarget::Variable(v), proc, shared_proc, cfg);
+                if owned {
+                    block_get(proc, *block_idx).push(IRStmt::Assign(IRAssign {
+                        target: IRTarget::Ignore,
+                        types: IRType::UNDEFINED,
+                        source: IRValue::BuiltinProc(BuiltinProc::Invalidate),
+                        op: IROp::NativeCall(vec![IRValue::Variable(v)]),
+                    }));
+                }
             }
-            CSTStatement::Backtrack => {
+            CSTStatementKind::Backtrack => {
                 /* _ := throw(2, "");
                  * unreachable;
                  */
@@ -203,18 +244,25 @@ pub fn block_populate(
                 ]);
                 return true;
             }
-            CSTStatement::Continue => {
+            CSTStatementKind::Continue => {
                 block_get(proc, *block_idx).push(IRStmt::Goto(continue_idx.unwrap()));
                 proc.blocks.add_edge(*block_idx, continue_idx.unwrap(), ());
                 return true;
             }
-            CSTStatement::Break => {
+            CSTStatementKind::Break => {
                 block_get(proc, *block_idx).push(IRStmt::Goto(break_idx.unwrap()));
                 proc.blocks.add_edge(*block_idx, break_idx.unwrap(), ());
                 return true;
             }
         }
     }
+
+    if !shared_proc.disable_annotations {
+        block_get(proc, *block_idx).push(IRStmt::Annotate(lhs_old, rhs_old));
+    }
+
+    shared_proc.code_lhs = lhs_old;
+    shared_proc.code_rhs = rhs_old;
 
     false
 }

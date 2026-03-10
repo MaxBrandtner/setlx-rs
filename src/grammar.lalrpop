@@ -16,26 +16,93 @@ pub Block: CSTBlock = {
 	<s:Statement*> => s,
 }
 
-Statement: CSTStatement = {
-	<i:ClassDecl> => CSTStatement::Class(i),
-	<i:IfDecl> => CSTStatement::If(i),
-	<i:SwitchDecl> => CSTStatement::Switch(i),
-	<i:MatchDecl> => CSTStatement::Match(i),
-	<i:ScanDecl> => CSTStatement::Scan(i),
-	<i:ForDecl> => CSTStatement::For(i),
-	<i:WhileDecl> => CSTStatement::While(i),
-	<i:DoWhileDecl> => CSTStatement::DoWhile(i),
-	<i:TryCatchDecl> => CSTStatement::TryCatch(i),
-	<i:CheckDecl> => CSTStatement::Check(i),
-	<i:ReturnDecl> => CSTStatement::Return(i),
-	<i:AssignDecl> ";" => i,
-	<i:AssignModDecl> ";" => CSTStatement::AssignMod(i),
-	<i:Expr> ";" => CSTStatement::Expression(i),
-
-	"backtrack" ";" => CSTStatement::Backtrack,
-	"break" ";" => CSTStatement::Break,
-	"continue" ";" => CSTStatement::Continue,
-	"exit" ";" => CSTStatement::Exit,
+pub Statement: CSTStatement = {
+	<lhs:@L> <i:ClassDecl>      <rhs:@R> => CSTStatement {
+		lhs,
+		rhs,
+		kind: CSTStatementKind::Class(i)
+	},
+	<lhs:@L> <i:IfDecl>         <rhs:@R> => CSTStatement {
+		lhs,
+		rhs,
+		kind: CSTStatementKind::If(i)
+	},
+	<lhs:@L> <i:SwitchDecl>     <rhs:@R> => CSTStatement {
+		lhs,
+		rhs,
+		kind: CSTStatementKind::Switch(i),
+	},
+	<lhs:@L> <i:MatchDecl>      <rhs:@R> => CSTStatement {
+		lhs,
+		rhs,
+		kind: CSTStatementKind::Match(i),
+	},
+	<lhs:@L> <i:ScanDecl>       <rhs:@R> => CSTStatement {
+		lhs,
+		rhs,
+		kind: CSTStatementKind::Scan(i),
+	},
+	<lhs:@L> <i:ForDecl>        <rhs:@R> => CSTStatement {
+		lhs,
+		rhs,
+		kind: CSTStatementKind::For(i),
+	},
+	<lhs:@L> <i:WhileDecl>      <rhs:@R> => CSTStatement {
+		lhs,
+		rhs,
+		kind: CSTStatementKind::While(i),
+	},
+	<lhs:@L> <i:DoWhileDecl>    <rhs:@R> => CSTStatement {
+		lhs,
+		rhs,
+		kind: CSTStatementKind::DoWhile(i),
+	},
+	<lhs:@L> <i:TryCatchDecl>   <rhs:@R> => CSTStatement {
+		lhs,
+		rhs,
+		kind: CSTStatementKind::TryCatch(i),
+	},
+	<lhs:@L> <i:CheckDecl>      <rhs:@R> => CSTStatement {
+		lhs,
+		rhs,
+		kind: CSTStatementKind::Check(i),
+	},
+	<lhs:@L> <i:ReturnDecl>     <rhs:@R> => CSTStatement {
+		lhs,
+		rhs,
+		kind: CSTStatementKind::Return(i),
+	},
+	<lhs:@L> <stmt:AssignDecl> ";" <rhs:@R> => stmt,
+	<lhs:@L> <i:AssignModDecl> ";" <rhs:@R> => CSTStatement {
+		lhs,
+		rhs,
+		kind: CSTStatementKind::AssignMod(i),
+	},
+	<lhs:@L> <i:Expr> ";"          <rhs:@R> => CSTStatement {
+		lhs,
+		rhs,
+		kind: CSTStatementKind::Expression(i),
+	},
+	<lhs:@L> "backtrack" ";"       <rhs:@R> => CSTStatement {
+		lhs,
+		rhs,
+		kind: CSTStatementKind::Backtrack,
+	},
+	<lhs:@L> "break" ";"           <rhs:@R> => CSTStatement {
+		lhs,
+		rhs,
+		kind: CSTStatementKind::Break,
+	},
+	<lhs:@L> "continue" ";"        <rhs:@R> => CSTStatement {
+		lhs,
+		rhs,
+		kind: CSTStatementKind::Continue,
+	},
+	<lhs:@L> "exit" ";"            <rhs:@R> => CSTStatement {
+		lhs,
+		rhs,
+		kind: CSTStatementKind::Exit,
+	},
 }
 
 ClassDecl: CSTClass = {
@@ -143,12 +210,13 @@ MatchRegexBranchAs: CSTExpression = {
 }
 
 ScanDecl: CSTScan = {
-	"scan" "(" <e:Expr> ")" <i:ScanUsing?> "{" <br:MatchRegexBranch+> "}"
+	"scan" "(" <e:Expr> ")" <i:ScanUsing?> "{" <br:MatchRegexBranch+> <dfl:MatchDefault?> "}"
 	=> {
 		CSTScan {
 			expression: e,
 			variable: i,
 			branches: br,
+			default: dfl,
 		}
 	}
 }
@@ -276,13 +344,21 @@ AssignDecl: CSTStatement = {
 	 * (a)[1] := 3;
 	 * a().x := 3;
 	 */
-	<assign:Accessible> ":=" <expr:AssignSource>
-	=> CSTStatement::Assign(CSTAssign { assign, expr: Box::new(expr) })
+	<lhs:@L> <assign:Accessible> ":=" <expr:AssignSource> <rhs:@R>
+	=> CSTStatement {
+		lhs,
+		rhs,
+		kind: CSTStatementKind::Assign(CSTAssign { assign, expr: Box::new(expr) })
+	}
 }
 
 AssignSource: CSTStatement = {
 	<i:AssignDecl> => i,
-	<i:Expr> => CSTStatement::Expression(i),
+	<lhs:@L> <i:Expr> <rhs:@R> => CSTStatement {
+		lhs,
+		rhs,
+		kind: CSTStatementKind::Expression(i),
+	}
 }
 
 AssignModDecl: CSTAssignMod = {
@@ -311,16 +387,20 @@ ExprList: Vec<CSTExpression> = {
 }
 
 pub Expr: CSTExpression = {
-	<i:Lambda> => CSTExpression::Lambda(i),
-	<i:SetEqual> => i,
+	<lhs:@L> <i:Lambda>     <rhs:@R> => CSTExpression {
+		lhs,
+		rhs,
+		kind: CSTExpressionKind::Lambda(i),
+	},
+	<e:SetEqual> => e,
 }
 
 LambdaParams: CSTCollection = {
-	<i:Ident> => CSTCollection::List(
+	<lhs:@L> <i:Ident> <rhs:@R> => CSTCollection::List(
 		CSTSet{
 			range: None,
 			expressions: vec![
-				CSTExpression::Variable(i)
+				CSTExpression { lhs, rhs, kind: CSTExpressionKind::Variable(i)}
 			],
 			rest: None,
 		}
@@ -332,19 +412,9 @@ LambdaParams: CSTCollection = {
 	<i:BrackCollection> => i,
 }
 
-LambdaBrackParam: Vec<String> = {
-	<i:Ident> <rest:("," Ident)*>
-	=> {
-		let mut out = vec![i];
-		out.extend(rest.into_iter().map(|(_, id)| id));
-
-		return out;
-	}
-}
-
 LambdaIsClosure: bool = {
-	"|->" => true,
-	"|=>" => false,
+	"|=>" => true,
+	"|->" => false,
 }
 
 Lambda: CSTLambda = {
@@ -362,16 +432,20 @@ SetEqualRight: (CSTOp, CSTExpression) = {
 }
 
 SetEqual: CSTExpression = {
-	<i0:Implication> <r:SetEqualRight?>
+	<lhs:@L> <i0:Implication> <r:SetEqualRight?> <rhs:@R>
 	=> {
 		if let Some((op, i1)) = r {
-			CSTExpression::Op(
-				CSTExpressionOp {
-					op,
-					left: Box::new(i0),
-					right: Box::new(i1)
-				}
-			)
+			CSTExpression {
+				lhs,
+				rhs,
+				kind: CSTExpressionKind::Op(
+					CSTExpressionOp {
+						op,
+						left: Box::new(i0),
+						right: Box::new(i1)
+					}
+				)
+			}
 		} else {
 			i0
 		}
@@ -379,16 +453,20 @@ SetEqual: CSTExpression = {
 }
 
 Implication: CSTExpression = {
-	<d:Disjunction> <i:ImplicationRight?>
+	<lhs:@L> <d:Disjunction> <i:ImplicationRight?> <rhs:@R>
 	=> {
 		if let Some(i_val) = i {
-			CSTExpression::Op(
-				CSTExpressionOp {
-					op: CSTOp::Imply,
-					left: Box::new(d),
-					right: Box::new(i_val),
-				}
-			)
+			CSTExpression {
+				lhs,
+				rhs,
+				kind: CSTExpressionKind::Op(
+					CSTExpressionOp {
+						op: CSTOp::Imply,
+						left: Box::new(d),
+						right: Box::new(i_val),
+					}
+				)
+			}
 		} else {
 			d
 		}
@@ -400,18 +478,22 @@ ImplicationRight: CSTExpression = {
 }
 
 Disjunction: CSTExpression = {
-	<c:Conjunction> <rest:("||" Conjunction)*>
+	<lhs:@L> <c:Conjunction> <rest:("||" Conjunction)*> <rhs:@R>
 	=> {
 		let mut expr_out = c;
 
 		for (_, elem) in rest {
-			expr_out = CSTExpression::Op(
-				CSTExpressionOp {
-					op: CSTOp::Or,
-					left: Box::new(expr_out),
-					right: Box::new(elem),
-				}
-			);
+			expr_out = CSTExpression {
+					lhs,
+					rhs,
+					kind: CSTExpressionKind::Op(
+					CSTExpressionOp {
+						op: CSTOp::Or,
+						left: Box::new(expr_out),
+						right: Box::new(elem),
+					}
+				)
+			};
 		}
 
 		expr_out
@@ -419,18 +501,22 @@ Disjunction: CSTExpression = {
 }
 
 Conjunction: CSTExpression = {
-	<c:Comparison> <rest:("&&" Comparison)*>
+	<lhs:@L> <c:Comparison> <rest:("&&" Comparison)*> <rhs:@R>
 	=> {
 		let mut expr_out = c;
 
 		for (_, elem) in rest {
-			expr_out = CSTExpression::Op(
-				CSTExpressionOp {
-					op: CSTOp::And,
-					left: Box::new(expr_out),
-					right: Box::new(elem),
-				}
-			);
+			expr_out = CSTExpression {
+				lhs,
+				rhs,
+				kind: CSTExpressionKind::Op(
+					CSTExpressionOp {
+						op: CSTOp::And,
+						left: Box::new(expr_out),
+						right: Box::new(elem),
+					}
+				)
+			};
 		}
 
 		expr_out
@@ -449,16 +535,20 @@ ComparisonOp: CSTOp = {
 }
 
 Comparison: CSTExpression = {
-	<s0:Sum> <r:ComparisonRight?> 
+	<lhs:@L> <s0:Sum> <r:ComparisonRight?> <rhs:@R>
 	=> {
 		if let Some(r_val) = r {
-			CSTExpression::Op(
-				CSTExpressionOp {
-					op: r_val.0,
-					left: Box::new(s0),
-					right: Box::new(r_val.1),
-				}
-			)
+			CSTExpression {
+				lhs,
+				rhs,
+				kind: CSTExpressionKind::Op(
+					CSTExpressionOp {
+						op: r_val.0,
+						left: Box::new(s0),
+						right: Box::new(r_val.1),
+					}
+				)
+			}
 		} else {
 			s0
 		}
@@ -475,18 +565,22 @@ SumOp: CSTOp = {
 }
 
 Sum: CSTExpression = {
-	<p0:Product> <r:SumRight*>
+	<lhs:@L> <p0:Product> <r:SumRight*> <rhs:@R>
 	=> {
 		let mut out = p0;
 
 		for (op, expr) in r {
-			out = CSTExpression::Op(
-				CSTExpressionOp {
-					op: op,
-					left: Box::new(out),
-					right: Box::new(expr),
-				}
-			);
+			out = CSTExpression {
+				lhs,
+				rhs,
+				kind: CSTExpressionKind::Op(
+					CSTExpressionOp {
+						op: op,
+						left: Box::new(out),
+						right: Box::new(expr),
+					}
+				)
+			};
 		}
 
 		out
@@ -506,18 +600,22 @@ ProductOp: CSTOp = {
 }
 
 Product: CSTExpression = {
-	<r:Reduce> <rest:(ProductOp Reduce)*>
+	<lhs:@L> <r:Reduce> <rest:(ProductOp Reduce)*> <rhs:@R>
 	=> {
 		let mut expr_out = r;
 
 		for (op, elem) in rest {
-			expr_out = CSTExpression::Op(
-				CSTExpressionOp {
-					op,
-					left: Box::new(expr_out),
-					right: Box::new(elem),
-				}
-			);
+			expr_out = CSTExpression {
+				lhs,
+				rhs,
+				kind: CSTExpressionKind::Op(
+					CSTExpressionOp {
+						op,
+						left: Box::new(expr_out),
+						right: Box::new(elem),
+					}
+				)
+			};
 		}
 
 		expr_out
@@ -530,18 +628,22 @@ ReduceOp: CSTOp = {
 }
 
 Reduce: CSTExpression = {
-	<p:PrefixOperation> <rest:(ReduceOp PrefixOperation)*>
+	<lhs:@L> <p:PrefixOperation> <rest:(ReduceOp PrefixOperation)*> <rhs:@R>
 	=> {
 		let mut expr_out = p;
 
 		for (op, elem) in rest {
-			expr_out = CSTExpression::Op(
-				CSTExpressionOp {
-					op,
-					left: Box::new(expr_out),
-					right: Box::new(elem),
-				}
-			);
+			expr_out = CSTExpression {
+				lhs,
+				rhs,
+				kind: CSTExpressionKind::Op(
+					CSTExpressionOp {
+						op,
+						left: Box::new(expr_out),
+						right: Box::new(elem),
+					}
+				)
+			};
 		}
 
 		expr_out
@@ -556,27 +658,35 @@ PrefixUnaryOp: CSTUnaryOp = {
 }
 
 PrefixOperation: CSTExpression = {
-	<f:Factor> <p:PowerRest?>
+	<lhs:@L> <f:Factor> <p:PowerRest?> <rhs:@R>
 	=> {
 		if let Some(p_val) = p {
-			CSTExpression::Op(
-				CSTExpressionOp {
-					op: CSTOp::Power,
-					left: Box::new(f),
-					right: Box::new(p_val),
-				}
-			)
+			CSTExpression {
+				lhs,
+				rhs,
+				kind: CSTExpressionKind::Op(
+					CSTExpressionOp {
+						op: CSTOp::Power,
+						left: Box::new(f),
+						right: Box::new(p_val),
+					}
+				)
+			}
 		} else {
 			f
 		}
 	},
-	<op:PrefixUnaryOp> <p:PrefixOperation>
-	=> CSTExpression::UnaryOp(
-		CSTExpressionUnaryOp {
-			op,
-			expr: Box::new(p)
-		}
-	)
+	<lhs:@L> <op:PrefixUnaryOp> <p:PrefixOperation> <rhs:@R>
+	=> CSTExpression {
+		lhs,
+		rhs,
+		kind: CSTExpressionKind::UnaryOp(
+			CSTExpressionUnaryOp {
+				op,
+				expr: Box::new(p)
+			}
+		)
+	}
 }
 
 PowerRest: CSTExpression = {
@@ -589,7 +699,7 @@ QuantKind: CSTQuantifierKind = {
 }
 
 Call: CSTExpression = {
-	<name:Ident> "(" <p:ProcedureCallParams?> ")"
+	<lhs:@L> <name:Ident> "(" <p:ProcedureCallParams?> ")" <rhs:@R>
 	=> {
 		let (params, rest_param) = if let Some((p_0, p_1)) = p {
 			(p_0, p_1)
@@ -597,13 +707,17 @@ Call: CSTExpression = {
 			(Vec::new(), None)
 		};
 
-		CSTExpression::Call(
-			CSTProcedureCall {
-				name,
-				params,
-				rest_param,
-			}
-		)
+		CSTExpression {
+			lhs,
+			rhs,
+			kind: CSTExpressionKind::Call(
+				CSTProcedureCall {
+					name,
+					params,
+					rest_param,
+				}
+			)
+		}
 	}
 }
 
@@ -648,26 +762,38 @@ TermExpr: CSTTerm = {
 }
 
 Factor: CSTExpression = {
-	"!" <f:Factor>
-	=> CSTExpression::UnaryOp(
-		CSTExpressionUnaryOp {
-			op: CSTUnaryOp::Not,
-			expr: Box::new(f)
-		}
-	),
-	<kind:QuantKind> "(" <iterators:IteratorChain> "|" <condition:Expr> ")"
-	=> CSTExpression::Quantifier(
-		CSTQuantifier { kind, iterators, condition: Box::new(condition) }
-	),
-	<i:AccessibleProcedure> <factor:"!"?>
+	<lhs:@L> "!" <f:Factor> <rhs:@R>
+	=> CSTExpression {
+		lhs,
+		rhs,
+		kind: CSTExpressionKind::UnaryOp(
+			CSTExpressionUnaryOp {
+				op: CSTUnaryOp::Not,
+				expr: Box::new(f)
+			}
+		)
+	},
+	<lhs:@L> <kind:QuantKind> "(" <iterators:IteratorChain> "|" <condition:Expr> ")" <rhs:@R>
+	=> CSTExpression {
+		lhs,
+		rhs,
+		kind: CSTExpressionKind::Quantifier(
+			CSTQuantifier { kind, iterators, condition: Box::new(condition) }
+		)
+	},
+	<lhs:@L> <i:AccessibleProcedure> <factor:"!"?> <rhs:@R>
 	=> {
 		if factor.is_some() {
-			CSTExpression::UnaryOp(
-				CSTExpressionUnaryOp {
-					op: CSTUnaryOp::Factor,
-					expr: Box::new(i)
-				}
-			)
+			CSTExpression {
+				lhs,
+				rhs,
+				kind: CSTExpressionKind::UnaryOp(
+					CSTExpressionUnaryOp {
+						op: CSTUnaryOp::Factor,
+						expr: Box::new(i)
+					}
+				)
+			}
 		} else {
 			i
 		}
@@ -681,27 +807,47 @@ AccessibleProcedure: CSTExpression = {
 
 AccessibleHead: CSTExpression = {
 	"(" <e:Expr> ")" => e,
-	<e:Ident> => CSTExpression::Variable(e),
+	<lhs:@L> <e:Ident> <rhs:@R> => CSTExpression {
+		lhs,
+		rhs,
+		kind: CSTExpressionKind::Variable(e),
+	},
 	<e:Call> => e,
 }
 
 AccessibleBodyElem: CSTExpression = {
-	"." <i:Ident> => CSTExpression::Variable(i),
+	<lhs:@L> "." <i:Ident> <rhs:@R> => CSTExpression {
+		lhs,
+		rhs,
+		kind: CSTExpressionKind::Variable(i),
+	},
 	"." <i:Call> => i,
-	<c:BrackCollection> => CSTExpression::Collection(c),
-	<c:CurlyCollection> => CSTExpression::Collection(c),
+	<lhs:@L> <c:BrackCollection> <rhs:@R> => CSTExpression {
+		lhs,
+		rhs,
+		kind: CSTExpressionKind::Collection(c),
+	},
+	<lhs:@L> <c:CurlyCollection> <rhs:@R> => CSTExpression {
+		lhs,
+		rhs,
+		kind: CSTExpressionKind::Collection(c),
+	},
 }
 
 Accessible: CSTExpression = {
-	<head:AccessibleHead> <body:AccessibleBodyElem*>
+	<lhs:@L> <head:AccessibleHead> <body:AccessibleBodyElem*> <rhs:@R>
 	=> {
 		if body.is_empty() {
 			return head;
 		}
 
-		CSTExpression::Accessible(
-			CSTAccessible {head: Box::new(head), body}
-		)
+		CSTExpression {
+			lhs,
+			rhs,
+			kind: CSTExpressionKind::Accessible(
+				CSTAccessible {head: Box::new(head), body}
+			)
+		}
 	},
 	<e:Value> => e,
 }
@@ -789,26 +935,58 @@ ListParam: String = {
 }
 
 Procedure: CSTExpression = {
-	<k: ProcedureKind> "(" <p:ProcedureParams> ")" "{" <b:Block> "}"
-	=> CSTExpression::Procedure(
-		CSTProcedure {
-			kind: k,
-			params: p.params,
-			list_param: p.list_param,
-			block: b,
-		}
-	)
+	<lhs:@L> <k: ProcedureKind> "(" <p:ProcedureParams> ")" "{" <b:Block> "}" <rhs:@R>
+	=> CSTExpression {
+		lhs,
+		rhs,
+		kind: CSTExpressionKind::Procedure(
+			CSTProcedure {
+				kind: k,
+				params: p.params,
+				list_param: p.list_param,
+				block: b,
+			}
+		)
+	}
 }
 
 Value: CSTExpression = {
-	<i:Collection>  => CSTExpression::Collection(i),
-	<i:StringRule>  => CSTExpression::String(i),
-	<i:Literal>     => CSTExpression::Literal(i),
-	<i:Matrix>     =>  CSTExpression::Matrix(i),
-	<i:Vector>      => CSTExpression::Vector(i),
-	<i:TermExpr>    => CSTExpression::Term(i),
+	<lhs:@L> <i:Collection> <rhs:@R> => CSTExpression {
+		lhs,
+		rhs,
+		kind: CSTExpressionKind::Collection(i),
+	},
+	<lhs:@L> <i:StringRule> <rhs:@R> => CSTExpression {
+		lhs,
+		rhs,
+		kind: CSTExpressionKind::String(i),
+	},
+	<lhs:@L> <i:Literal>    <rhs:@R> => CSTExpression {
+		lhs,
+		rhs,
+		kind: CSTExpressionKind::Literal(i),
+	},
+	<lhs:@L> <i:Matrix>     <rhs:@R> => CSTExpression {
+		lhs,
+		rhs,
+		kind: CSTExpressionKind::Matrix(i),
+	},
+	<lhs:@L> <i:Vector>     <rhs:@R> => CSTExpression {
+		lhs,
+		rhs,
+		kind: CSTExpressionKind::Vector(i),
+	},
+	<lhs:@L> <i:TermExpr>   <rhs:@R> => CSTExpression {
+		lhs,
+		rhs,
+		kind: CSTExpressionKind::Term(i),
+	},
 	<i:AtomicValue> => i,
-	"_"             => CSTExpression::Ignore,
+	<lhs:@L> "_"            <rhs:@R> => CSTExpression {
+		lhs,
+		rhs,
+		kind: CSTExpressionKind::Ignore,
+	},
 }
 
 Collection: CSTCollection = {
@@ -1039,35 +1217,59 @@ CurlyCollection: CSTCollection = {
 }
 
 VecNumber: CSTExpression = {
-	<n:Number> => CSTExpression::Number(n),
-	<n:Double> => CSTExpression::Double(n),
+	<lhs:@L> <n:Number> <rhs:@R> => CSTExpression {
+		lhs,
+		rhs,
+		kind: CSTExpressionKind::Number(n),
+	},
+	<lhs:@L> <n:Double> <rhs:@R> => CSTExpression {
+		lhs,
+		rhs,
+		kind: CSTExpressionKind::Double(n),
+	},
+}
+
+QuotNumber: (usize, usize, BigInt) = {
+	<lhs:@L> "/" <n:Number> <rhs:@R> => (lhs, rhs, n)
 }
 
 Vector: Vec<CSTExpression> = {
-	"<<" <c:("-"? VecNumber ("/" Number)?)+> ">>"
+	<lhs:@L> "<<" <c:("-"? VecNumber QuotNumber?)+> ">>" <rhs:@R>
 	=> {
 		let mut out: Vec<CSTExpression> = Vec::new();
 
 		for (sub, a, quot) in c {
 			let num = if sub.is_some() {
-				CSTExpression::UnaryOp(
-					CSTExpressionUnaryOp {
-						op: CSTUnaryOp::Minus,
-						expr: Box::new(a),
-					}
-				)
+				CSTExpression {
+					lhs,
+					rhs,
+					kind: CSTExpressionKind::UnaryOp(
+						CSTExpressionUnaryOp {
+							op: CSTUnaryOp::Minus,
+							expr: Box::new(a),
+						}
+					)
+				}
 			} else {
 				a
 			};
 
-			let elem = if let Some((_, quot_val)) = quot {
-				CSTExpression::Op(
-					CSTExpressionOp {
-						op: CSTOp::Div,
-						left: Box::new(num),
-						right: Box::new(CSTExpression::Number(quot_val)),
-					}
-				)
+			let elem = if let Some((nlhs, nrhs, quot_val)) = quot {
+				CSTExpression {
+					lhs,
+					rhs,
+					kind: CSTExpressionKind::Op(
+						CSTExpressionOp {
+							op: CSTOp::Div,
+							left: Box::new(num),
+							right: Box::new(CSTExpression {
+								lhs: nlhs,
+								rhs: nrhs,
+								kind: CSTExpressionKind::Number(quot_val),
+							}),
+						}
+					)
+				}
 			} else {
 				num
 			};
@@ -1084,11 +1286,31 @@ Matrix: Vec<Vec<CSTExpression>> = {
 }
 
 AtomicValue: CSTExpression = {
-	<i:Number> => CSTExpression::Number(i),
-	<i:Double> => CSTExpression::Double(i),
-	"om"       => CSTExpression::Om,
-	"true"     => CSTExpression::Bool(true),
-	"false"    => CSTExpression::Bool(false),
+	<lhs:@L> <i:Number> <rhs:@R> => CSTExpression {
+		lhs,
+		rhs,
+		kind: CSTExpressionKind::Number(i),
+	},
+	<lhs:@L> <i:Double> <rhs:@R> => CSTExpression {
+		lhs,
+		rhs,
+		kind: CSTExpressionKind::Double(i),
+	},
+	<lhs:@L> "om"       <rhs:@R> => CSTExpression {
+		lhs,
+		rhs,
+		kind: CSTExpressionKind::Om,
+	},
+	<lhs:@L> "true"     <rhs:@R> => CSTExpression {
+		lhs,
+		rhs,
+		kind: CSTExpressionKind::Bool(true),
+	},
+	<lhs:@L> "false"    <rhs:@R> => CSTExpression {
+		lhs,
+		rhs,
+		kind: CSTExpressionKind::Bool(false),
+	},
 }
 
 Iterator: CSTIterParam = {
@@ -1097,11 +1319,6 @@ Iterator: CSTIterParam = {
 		variable,
 		collection,
 	}
-}
-
-#[inline]
-DcolonIteratorChain: Vec<CSTIterParam> = {
-	":" <i:IteratorChain> => i,
 }
 
 IteratorChain: Vec<CSTIterParam> = {

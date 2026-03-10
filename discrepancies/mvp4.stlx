@@ -1,0 +1,4 @@
+scan ("hello hello") {
+	regex "hello": print("hi");
+	default: print("ho");
+}

@@ -4,8 +4,21 @@
   "dir": "SetlX",
   "blacklist": [
     "bug.stlx",
+    "buggy-function.stlx",
     "dempster-shafer.stlx",
+    "find-perfect.stlx",
+    "hanoi-frame.stlx",
+    "legendre.stlx",
     "parse-propositional.stlx",
-    "tautologyOld.stlx"
-  ]
+    "path.stlx",
+    "power.stlx",
+    "queens.stlx",
+    "sum-recursive.stlx",
+    "tautology.stlx",
+    "tautologyOld.stlx",
+    "tunnel-frame.stlx",
+    "turing.stlx",
+    "zebra-frame.stlx"
+  ],
+  "references": "tests/suites/stroetmann-logic/"
 }

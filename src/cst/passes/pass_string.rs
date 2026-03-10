@@ -1,456 +1,539 @@
+use ariadne::ReportKind;
+
 use crate::ast::*;
 use crate::cli::InputOpts;
 use crate::cst::dump::cst_dump;
+use crate::cst::passes::pass_offset;
+use crate::cst::passes::unescape::unescape;
+use crate::diagnostics::{parse_err_add_offset, report, report_parse_error};
 use crate::setlx_parse;
-use crate::util::unescape::unescape;
 
-fn pass_param(p: CSTParam, pass_failed: &mut bool) -> CSTParam {
-    CSTParam {
-        name: p.name,
-        is_rw: p.is_rw,
-        default: p.default.map(|i| pass_expr(i, pass_failed)),
+pub struct StrCtx<'a> {
+    pub src: &'a str,
+    pub srcname: &'a str,
+    pub lhs: usize,
+    pub rhs: usize,
+    pub warn_invalid_backslash: bool,
+}
+
+impl<'a> StrCtx<'a> {
+    pub fn new(src: &'a str, opts: &'a InputOpts) -> Self {
+        StrCtx {
+            src,
+            srcname: &opts.srcname,
+            lhs: 0,
+            rhs: 0,
+            warn_invalid_backslash: opts.warn_invalid_backslash,
+        }
+    }
+
+    fn set_pos(&self, lhs: usize, rhs: usize) -> Self {
+        StrCtx {
+            src: self.src,
+            srcname: self.srcname,
+            lhs,
+            rhs,
+            warn_invalid_backslash: self.warn_invalid_backslash,
+        }
     }
 }
 
-fn pass_class(c: CSTClass, pass_failed: &mut bool) -> CSTClass {
-    CSTClass {
-        name: c.name,
-        params: c
-            .params
-            .into_iter()
-            .map(|i| pass_param(i, pass_failed))
-            .collect(),
-        block: pass_block(c.block, pass_failed),
-        static_block: c.static_block.map(|s| pass_block(s, pass_failed)),
-    }
+fn pass_param(p: &mut CSTParam, pass_failed: &mut bool, ctx: &StrCtx, err_str: &mut String) {
+    p.default
+        .iter_mut()
+        .for_each(|i| pass_expr(i, pass_failed, ctx, err_str));
 }
 
-fn pass_if_branch(i: CSTIfBranch, pass_failed: &mut bool) -> CSTIfBranch {
-    CSTIfBranch {
-        condition: pass_expr(i.condition, pass_failed),
-        block: pass_block(i.block, pass_failed),
-    }
+fn pass_class(c: &mut CSTClass, pass_failed: &mut bool, ctx: &StrCtx, err_str: &mut String) {
+    c.params
+        .iter_mut()
+        .for_each(|i| pass_param(i, pass_failed, ctx, err_str));
+    pass_block(&mut c.block, pass_failed, ctx, err_str);
+    c.static_block
+        .iter_mut()
+        .for_each(|i| pass_block(i, pass_failed, ctx, err_str));
 }
 
-fn pass_if(i: CSTIf, pass_failed: &mut bool) -> CSTIf {
-    CSTIf {
-        branches: i
-            .branches
-            .into_iter()
-            .map(|i| pass_if_branch(i, pass_failed))
-            .collect(),
-        alternative: i.alternative.map(|a| pass_block(a, pass_failed)),
-    }
+fn pass_if_branch(i: &mut CSTIfBranch, pass_failed: &mut bool, ctx: &StrCtx, err_str: &mut String) {
+    pass_expr(&mut i.condition, pass_failed, ctx, err_str);
+    pass_block(&mut i.block, pass_failed, ctx, err_str);
 }
 
-fn pass_match_branch(m: CSTMatchBranch, pass_failed: &mut bool) -> CSTMatchBranch {
+fn pass_if(i: &mut CSTIf, pass_failed: &mut bool, ctx: &StrCtx, err_str: &mut String) {
+    i.branches
+        .iter_mut()
+        .for_each(|i| pass_if_branch(i, pass_failed, ctx, err_str));
+    i.alternative
+        .iter_mut()
+        .for_each(|i| pass_block(i, pass_failed, ctx, err_str));
+}
+
+fn pass_match_branch(
+    m: &mut CSTMatchBranch,
+    pass_failed: &mut bool,
+    ctx: &StrCtx,
+    err_str: &mut String,
+) {
     match m {
-        CSTMatchBranch::Case(c) => CSTMatchBranch::Case(CSTMatchBranchCase {
-            expressions: c
-                .expressions
-                .into_iter()
-                .map(|i| pass_expr(i, pass_failed))
-                .collect(),
-            condition: c.condition.map(|i| pass_expr(i, pass_failed)),
-            statements: pass_block(c.statements, pass_failed),
-        }),
-        CSTMatchBranch::Regex(r) => CSTMatchBranch::Regex(CSTMatchBranchRegex {
-            pattern: pass_expr(r.pattern, pass_failed),
-            pattern_out: r.pattern_out.map(|i| pass_expr(i, pass_failed)),
-            condition: r.condition.map(|i| pass_expr(i, pass_failed)),
-            statements: pass_block(r.statements, pass_failed),
-        }),
+        CSTMatchBranch::Case(c) => {
+            c.expressions
+                .iter_mut()
+                .for_each(|i| pass_expr(i, pass_failed, ctx, err_str));
+            c.condition
+                .iter_mut()
+                .for_each(|i| pass_expr(i, pass_failed, ctx, err_str));
+            pass_block(&mut c.statements, pass_failed, ctx, err_str);
+        }
+        CSTMatchBranch::Regex(r) => {
+            pass_expr(&mut r.pattern, pass_failed, ctx, err_str);
+            r.pattern_out
+                .iter_mut()
+                .for_each(|i| pass_expr(i, pass_failed, ctx, err_str));
+            r.condition
+                .iter_mut()
+                .for_each(|i| pass_expr(i, pass_failed, ctx, err_str));
+            pass_block(&mut r.statements, pass_failed, ctx, err_str);
+        }
     }
 }
 
-fn pass_match(m: CSTMatch, pass_failed: &mut bool) -> CSTMatch {
-    CSTMatch {
-        expression: pass_expr(m.expression, pass_failed),
-        branches: m
-            .branches
-            .into_iter()
-            .map(|i| pass_match_branch(i, pass_failed))
-            .collect(),
-        default: pass_block(m.default, pass_failed),
-    }
+fn pass_match(m: &mut CSTMatch, pass_failed: &mut bool, ctx: &StrCtx, err_str: &mut String) {
+    pass_expr(&mut m.expression, pass_failed, ctx, err_str);
+    m.branches
+        .iter_mut()
+        .for_each(|i| pass_match_branch(i, pass_failed, ctx, err_str));
+    pass_block(&mut m.default, pass_failed, ctx, err_str);
 }
 
-fn pass_scan(s: CSTScan, pass_failed: &mut bool) -> CSTScan {
-    CSTScan {
-        expression: pass_expr(s.expression, pass_failed),
-        variable: s.variable,
-        branches: s
-            .branches
-            .into_iter()
-            .map(|i| pass_match_branch(i, pass_failed))
-            .collect(),
-    }
+fn pass_scan(s: &mut CSTScan, pass_failed: &mut bool, ctx: &StrCtx, err_str: &mut String) {
+    pass_expr(&mut s.expression, pass_failed, ctx, err_str);
+    s.branches
+        .iter_mut()
+        .for_each(|i| pass_match_branch(i, pass_failed, ctx, err_str));
 }
 
-fn pass_iter_param(i: CSTIterParam, pass_failed: &mut bool) -> CSTIterParam {
-    CSTIterParam {
-        variable: pass_expr(i.variable, pass_failed),
-        collection: pass_expr(i.collection, pass_failed),
-    }
+fn pass_iter_param(
+    i: &mut CSTIterParam,
+    pass_failed: &mut bool,
+    ctx: &StrCtx,
+    err_str: &mut String,
+) {
+    pass_expr(&mut i.variable, pass_failed, ctx, err_str);
+    pass_expr(&mut i.collection, pass_failed, ctx, err_str);
 }
 
-fn pass_for(f: CSTFor, pass_failed: &mut bool) -> CSTFor {
-    CSTFor {
-        params: f
-            .params
-            .into_iter()
-            .map(|i| pass_iter_param(i, pass_failed))
-            .collect(),
-        condition: f.condition.map(|c| Box::new(pass_expr(*c, pass_failed))),
-        block: pass_block(f.block, pass_failed),
-    }
+fn pass_for(f: &mut CSTFor, pass_failed: &mut bool, ctx: &StrCtx, err_str: &mut String) {
+    f.params
+        .iter_mut()
+        .for_each(|i| pass_iter_param(i, pass_failed, ctx, err_str));
+    f.condition
+        .iter_mut()
+        .for_each(|i| pass_expr(&mut *i, pass_failed, ctx, err_str));
+    pass_block(&mut f.block, pass_failed, ctx, err_str);
 }
 
-fn pass_while(w: CSTWhile, pass_failed: &mut bool) -> CSTWhile {
-    CSTWhile {
-        condition: pass_expr(w.condition, pass_failed),
-        block: pass_block(w.block, pass_failed),
-    }
+fn pass_while(w: &mut CSTWhile, pass_failed: &mut bool, ctx: &StrCtx, err_str: &mut String) {
+    pass_expr(&mut w.condition, pass_failed, ctx, err_str);
+    pass_block(&mut w.block, pass_failed, ctx, err_str);
 }
 
-fn pass_catch(c: CSTCatch, pass_failed: &mut bool) -> CSTCatch {
-    CSTCatch {
-        kind: c.kind,
-        exception: c.exception,
-        block: pass_block(c.block, pass_failed),
-    }
+fn pass_catch(c: &mut CSTCatch, pass_failed: &mut bool, ctx: &StrCtx, err_str: &mut String) {
+    pass_block(&mut c.block, pass_failed, ctx, err_str);
 }
 
-fn pass_try(t: CSTTryCatch, pass_failed: &mut bool) -> CSTTryCatch {
-    CSTTryCatch {
-        try_branch: pass_block(t.try_branch, pass_failed),
-        catch_branches: t
-            .catch_branches
-            .into_iter()
-            .map(|i| pass_catch(i, pass_failed))
-            .collect(),
-    }
+fn pass_try(t: &mut CSTTryCatch, pass_failed: &mut bool, ctx: &StrCtx, err_str: &mut String) {
+    pass_block(&mut t.try_branch, pass_failed, ctx, err_str);
+    t.catch_branches
+        .iter_mut()
+        .for_each(|i| pass_catch(i, pass_failed, ctx, err_str));
 }
 
-fn pass_check(c: CSTCheck, pass_failed: &mut bool) -> CSTCheck {
-    CSTCheck {
-        block: pass_block(c.block, pass_failed),
-        after_backtrack: pass_block(c.after_backtrack, pass_failed),
-    }
+fn pass_check(c: &mut CSTCheck, pass_failed: &mut bool, ctx: &StrCtx, err_str: &mut String) {
+    pass_block(&mut c.block, pass_failed, ctx, err_str);
+    pass_block(&mut c.after_backtrack, pass_failed, ctx, err_str);
 }
 
-fn pass_return(r: CSTReturn, pass_failed: &mut bool) -> CSTReturn {
-    CSTReturn {
-        val: r.val.map(|v| pass_expr(v, pass_failed)),
-    }
+fn pass_return(r: &mut CSTReturn, pass_failed: &mut bool, ctx: &StrCtx, err_str: &mut String) {
+    r.val
+        .iter_mut()
+        .for_each(|i| pass_expr(i, pass_failed, ctx, err_str));
 }
 
-fn pass_assign(a: CSTAssign, pass_failed: &mut bool) -> CSTAssign {
-    CSTAssign {
-        assign: pass_expr(a.assign, pass_failed),
-        expr: Box::new(pass_stmt(*a.expr, pass_failed)),
-    }
+fn pass_assign(a: &mut CSTAssign, pass_failed: &mut bool, ctx: &StrCtx, err_str: &mut String) {
+    pass_expr(&mut a.assign, pass_failed, ctx, err_str);
+    pass_stmt(&mut a.expr, pass_failed, ctx, err_str);
 }
 
-fn pass_assign_mod(a: CSTAssignMod, pass_failed: &mut bool) -> CSTAssignMod {
-    CSTAssignMod {
-        assign: pass_expr(a.assign, pass_failed),
-        kind: a.kind,
-        expr: pass_expr(a.expr, pass_failed),
-    }
+fn pass_assign_mod(
+    a: &mut CSTAssignMod,
+    pass_failed: &mut bool,
+    ctx: &StrCtx,
+    err_str: &mut String,
+) {
+    pass_expr(&mut a.assign, pass_failed, ctx, err_str);
+    pass_expr(&mut a.expr, pass_failed, ctx, err_str);
 }
 
-fn pass_lambda(l: CSTLambda, pass_failed: &mut bool) -> CSTLambda {
-    CSTLambda {
-        params: pass_collection(l.params, pass_failed),
-        is_closure: l.is_closure,
-        expr: Box::new(pass_expr(*l.expr, pass_failed)),
-    }
+fn pass_lambda(l: &mut CSTLambda, pass_failed: &mut bool, ctx: &StrCtx, err_str: &mut String) {
+    pass_collection(&mut l.params, pass_failed, ctx, err_str);
+    pass_expr(&mut l.expr, pass_failed, ctx, err_str);
 }
 
-fn pass_op(o: CSTExpressionOp, pass_failed: &mut bool) -> CSTExpressionOp {
-    CSTExpressionOp {
-        op: o.op,
-        left: Box::new(pass_expr(*o.left, pass_failed)),
-        right: Box::new(pass_expr(*o.right, pass_failed)),
-    }
+fn pass_op(o: &mut CSTExpressionOp, pass_failed: &mut bool, ctx: &StrCtx, err_str: &mut String) {
+    pass_expr(&mut o.left, pass_failed, ctx, err_str);
+    pass_expr(&mut o.right, pass_failed, ctx, err_str);
 }
 
-fn pass_unary_op(o: CSTExpressionUnaryOp, pass_failed: &mut bool) -> CSTExpressionUnaryOp {
-    CSTExpressionUnaryOp {
-        op: o.op,
-        expr: Box::new(pass_expr(*o.expr, pass_failed)),
-    }
+fn pass_unary_op(
+    o: &mut CSTExpressionUnaryOp,
+    pass_failed: &mut bool,
+    ctx: &StrCtx,
+    err_str: &mut String,
+) {
+    pass_expr(&mut o.expr, pass_failed, ctx, err_str);
 }
 
-fn pass_proc(p: CSTProcedure, pass_failed: &mut bool) -> CSTProcedure {
-    CSTProcedure {
-        kind: p.kind,
-        params: p
-            .params
-            .into_iter()
-            .map(|i| pass_param(i, pass_failed))
-            .collect(),
-        list_param: p.list_param,
-        block: pass_block(p.block, pass_failed),
-    }
+fn pass_proc(p: &mut CSTProcedure, pass_failed: &mut bool, ctx: &StrCtx, err_str: &mut String) {
+    p.params
+        .iter_mut()
+        .for_each(|i| pass_param(i, pass_failed, ctx, err_str));
+    pass_block(&mut p.block, pass_failed, ctx, err_str);
 }
 
-fn pass_call(c: CSTProcedureCall, pass_failed: &mut bool) -> CSTProcedureCall {
-    CSTProcedureCall {
-        name: c.name,
-        params: c
-            .params
-            .into_iter()
-            .map(|i| pass_expr(i, pass_failed))
-            .collect(),
-        rest_param: c.rest_param.map(|i| Box::new(pass_expr(*i, pass_failed))),
-    }
+fn pass_call(c: &mut CSTProcedureCall, pass_failed: &mut bool, ctx: &StrCtx, err_str: &mut String) {
+    c.params
+        .iter_mut()
+        .for_each(|i| pass_expr(i, pass_failed, ctx, err_str));
+    c.rest_param
+        .iter_mut()
+        .for_each(|i| pass_expr(&mut *i, pass_failed, ctx, err_str));
 }
 
-fn pass_term(t: CSTTerm, pass_failed: &mut bool) -> CSTTerm {
-    CSTTerm {
-        name: t.name,
-        is_tterm: t.is_tterm,
-        params: t
-            .params
-            .into_iter()
-            .map(|i| pass_expr(i, pass_failed))
-            .collect(),
-    }
+fn pass_term(t: &mut CSTTerm, pass_failed: &mut bool, ctx: &StrCtx, err_str: &mut String) {
+    t.params
+        .iter_mut()
+        .for_each(|i| pass_expr(i, pass_failed, ctx, err_str));
 }
 
-fn pass_accessible(a: CSTAccessible, pass_failed: &mut bool) -> CSTAccessible {
-    CSTAccessible {
-        head: Box::new(pass_expr(*a.head, pass_failed)),
-        body: a
-            .body
-            .into_iter()
-            .map(|i| pass_expr(i, pass_failed))
-            .collect(),
-    }
+fn pass_accessible(
+    a: &mut CSTAccessible,
+    pass_failed: &mut bool,
+    ctx: &StrCtx,
+    err_str: &mut String,
+) {
+    pass_expr(&mut a.head, pass_failed, ctx, err_str);
+    a.body
+        .iter_mut()
+        .for_each(|i| pass_expr(i, pass_failed, ctx, err_str));
 }
 
-fn pass_range(r: CSTRange, pass_failed: &mut bool) -> CSTRange {
-    CSTRange {
-        left: r.left.map(|i| Box::new(pass_expr(*i, pass_failed))),
-        right: r.right.map(|i| Box::new(pass_expr(*i, pass_failed))),
-    }
+fn pass_range(r: &mut CSTRange, pass_failed: &mut bool, ctx: &StrCtx, err_str: &mut String) {
+    r.left
+        .iter_mut()
+        .for_each(|i| pass_expr(&mut *i, pass_failed, ctx, err_str));
+    r.right
+        .iter_mut()
+        .for_each(|i| pass_expr(&mut *i, pass_failed, ctx, err_str));
 }
 
-fn pass_set(s: CSTSet, pass_failed: &mut bool) -> CSTSet {
-    CSTSet {
-        range: s.range.map(|i| pass_range(i, pass_failed)),
-        expressions: s
-            .expressions
-            .into_iter()
-            .map(|i| pass_expr(i, pass_failed))
-            .collect(),
-        rest: s.rest.map(|i| Box::new(pass_expr(*i, pass_failed))),
-    }
+fn pass_set(s: &mut CSTSet, pass_failed: &mut bool, ctx: &StrCtx, err_str: &mut String) {
+    s.range
+        .iter_mut()
+        .for_each(|i| pass_range(i, pass_failed, ctx, err_str));
+    s.expressions
+        .iter_mut()
+        .for_each(|i| pass_expr(i, pass_failed, ctx, err_str));
+    s.rest
+        .iter_mut()
+        .for_each(|i| pass_expr(i, pass_failed, ctx, err_str));
 }
 
-fn pass_comprehension(c: CSTComprehension, pass_failed: &mut bool) -> CSTComprehension {
-    CSTComprehension {
-        expression: Box::new(pass_expr(*c.expression, pass_failed)),
-        iterators: c
-            .iterators
-            .into_iter()
-            .map(|i| pass_iter_param(i, pass_failed))
-            .collect(),
-        condition: c.condition.map(|i| Box::new(pass_expr(*i, pass_failed))),
-    }
+fn pass_comprehension(
+    c: &mut CSTComprehension,
+    pass_failed: &mut bool,
+    ctx: &StrCtx,
+    err_str: &mut String,
+) {
+    pass_expr(&mut c.expression, pass_failed, ctx, err_str);
+    c.condition
+        .iter_mut()
+        .for_each(|i| pass_expr(&mut *i, pass_failed, ctx, err_str));
+    c.iterators
+        .iter_mut()
+        .for_each(|i| pass_iter_param(i, pass_failed, ctx, err_str));
 }
 
-fn pass_collection(c: CSTCollection, pass_failed: &mut bool) -> CSTCollection {
+fn pass_collection(
+    c: &mut CSTCollection,
+    pass_failed: &mut bool,
+    ctx: &StrCtx,
+    err_str: &mut String,
+) {
     match c {
-        CSTCollection::Set(s) => CSTCollection::Set(pass_set(s, pass_failed)),
-        CSTCollection::List(s) => CSTCollection::List(pass_set(s, pass_failed)),
-        CSTCollection::SetComprehension(s) => {
-            CSTCollection::SetComprehension(pass_comprehension(s, pass_failed))
-        }
-        CSTCollection::ListComprehension(s) => {
-            CSTCollection::ListComprehension(pass_comprehension(s, pass_failed))
-        }
+        CSTCollection::Set(s) => pass_set(s, pass_failed, ctx, err_str),
+        CSTCollection::List(s) => pass_set(s, pass_failed, ctx, err_str),
+        CSTCollection::SetComprehension(s) => pass_comprehension(s, pass_failed, ctx, err_str),
+        CSTCollection::ListComprehension(s) => pass_comprehension(s, pass_failed, ctx, err_str),
     }
 }
 
-fn pass_matrix(m: Vec<Vec<CSTExpression>>, pass_failed: &mut bool) -> Vec<Vec<CSTExpression>> {
-    m.into_iter()
-        .map(|i| i.into_iter().map(|j| pass_expr(j, pass_failed)).collect())
-        .collect()
+fn pass_matrix(
+    m: &mut [Vec<CSTExpression>],
+    pass_failed: &mut bool,
+    ctx: &StrCtx,
+    err_str: &mut String,
+) {
+    m.iter_mut().for_each(|i| {
+        i.iter_mut()
+            .for_each(|j| pass_expr(j, pass_failed, ctx, err_str))
+    });
 }
 
-fn pass_vector(m: Vec<CSTExpression>, pass_failed: &mut bool) -> Vec<CSTExpression> {
-    m.into_iter().map(|i| pass_expr(i, pass_failed)).collect()
+fn pass_vector(
+    m: &mut [CSTExpression],
+    pass_failed: &mut bool,
+    ctx: &StrCtx,
+    err_str: &mut String,
+) {
+    m.iter_mut()
+        .for_each(|i| pass_expr(i, pass_failed, ctx, err_str));
 }
 
-fn pass_quant(q: CSTQuantifier, pass_failed: &mut bool) -> CSTQuantifier {
-    CSTQuantifier {
-        kind: q.kind,
-        iterators: q
-            .iterators
-            .into_iter()
-            .map(|i| pass_iter_param(i, pass_failed))
-            .collect(),
-        condition: Box::new(pass_expr(*q.condition, pass_failed)),
-    }
+fn pass_quant(q: &mut CSTQuantifier, pass_failed: &mut bool, ctx: &StrCtx, err_str: &mut String) {
+    q.iterators
+        .iter_mut()
+        .for_each(|i| pass_iter_param(i, pass_failed, ctx, err_str));
+    pass_expr(&mut q.condition, pass_failed, ctx, err_str);
 }
 
-fn pass_expr(e: CSTExpression, pass_failed: &mut bool) -> CSTExpression {
-    match e {
-        CSTExpression::Lambda(l) => CSTExpression::Lambda(pass_lambda(l, pass_failed)),
-        CSTExpression::Op(o) => CSTExpression::Op(pass_op(o, pass_failed)),
-        CSTExpression::UnaryOp(o) => CSTExpression::UnaryOp(pass_unary_op(o, pass_failed)),
-        CSTExpression::Procedure(p) => CSTExpression::Procedure(pass_proc(p, pass_failed)),
-        CSTExpression::Call(c) => CSTExpression::Call(pass_call(c, pass_failed)),
-        CSTExpression::Term(t) => CSTExpression::Term(pass_term(t, pass_failed)),
-        CSTExpression::Accessible(a) => CSTExpression::Accessible(pass_accessible(a, pass_failed)),
-        CSTExpression::Collection(c) => CSTExpression::Collection(pass_collection(c, pass_failed)),
-        CSTExpression::Matrix(m) => CSTExpression::Matrix(pass_matrix(m, pass_failed)),
-        CSTExpression::Vector(v) => CSTExpression::Vector(pass_vector(v, pass_failed)),
-        CSTExpression::Quantifier(q) => CSTExpression::Quantifier(pass_quant(q, pass_failed)),
-        CSTExpression::String(s) => {
-            fn split_on_dollar(input: &str) -> Option<Vec<String>> {
+pub fn pass_expr(
+    e: &mut CSTExpression,
+    pass_failed: &mut bool,
+    ictx: &StrCtx,
+    err_str: &mut String,
+) {
+    let ctx = ictx.set_pos(e.lhs, e.rhs);
+
+    match &mut e.kind {
+        CSTExpressionKind::Lambda(l) => pass_lambda(l, pass_failed, &ctx, err_str),
+        CSTExpressionKind::Op(o) => pass_op(o, pass_failed, &ctx, err_str),
+        CSTExpressionKind::UnaryOp(o) => pass_unary_op(o, pass_failed, &ctx, err_str),
+        CSTExpressionKind::Procedure(p) => pass_proc(p, pass_failed, &ctx, err_str),
+        CSTExpressionKind::Call(c) => pass_call(c, pass_failed, &ctx, err_str),
+        CSTExpressionKind::Term(t) => pass_term(t, pass_failed, &ctx, err_str),
+        CSTExpressionKind::Accessible(a) => pass_accessible(a, pass_failed, &ctx, err_str),
+        CSTExpressionKind::Collection(c) => pass_collection(c, pass_failed, &ctx, err_str),
+        CSTExpressionKind::Matrix(m) => pass_matrix(m, pass_failed, &ctx, err_str),
+        CSTExpressionKind::Vector(v) => pass_vector(v, pass_failed, &ctx, err_str),
+        CSTExpressionKind::Quantifier(q) => pass_quant(q, pass_failed, &ctx, err_str),
+        CSTExpressionKind::String(s) => {
+            fn split_on_dollar(input: &str) -> Result<Vec<(usize, usize, String)>, usize> {
                 enum State {
                     Normal,
-                    Escaped,
                     Inside,
-                    InsideEscaped,
                 }
 
                 let mut state = State::Normal;
-                let mut result = Vec::new();
+                let mut result: Vec<(usize, usize, String)> = Vec::new();
                 let mut current = String::new();
+                let mut sgmt_start: usize = 0;
+                let mut c_len: usize = 0;
 
-                for c in input.chars() {
+                for (idx, c) in input.char_indices() {
                     match state {
                         State::Normal => match c {
-                            '\\' => state = State::Escaped,
                             '$' => {
-                                result.push(unescape(&current)?);
-                                current.clear();
-                                state = State::Inside;
+                                if current.ends_with('\\') {
+                                    current.pop();
+                                    current.push('$');
+                                } else {
+                                    result.push((sgmt_start, idx, current));
+                                    current = String::new();
+                                    c_len = c.len_utf8();
+                                    sgmt_start = idx + c_len;
+                                    state = State::Inside;
+                                }
                             }
                             _ => current.push(c),
                         },
-                        State::Escaped => {
-                            current.push(c);
-                            state = State::Normal;
-                        }
                         State::Inside => match c {
-                            '\\' => state = State::InsideEscaped,
                             '$' => {
-                                result.push(unescape(&current)?);
-                                current.clear();
-                                state = State::Normal;
+                                if current.ends_with('\\') {
+                                    current.pop();
+                                    current.push('$');
+                                } else {
+                                    result.push((sgmt_start, idx, current));
+                                    current = String::new();
+                                    c_len = c.len_utf8();
+                                    sgmt_start = idx + c_len;
+                                    state = State::Normal;
+                                }
                             }
                             _ => current.push(c),
                         },
-                        State::InsideEscaped => {
-                            current.push(c);
-                            state = State::Inside;
-                        }
                     }
                 }
 
-                if matches!(state, State::Inside | State::InsideEscaped) {
-                    return None;
+                if matches!(state, State::Inside) {
+                    return Err(sgmt_start - c_len);
                 }
 
                 if !current.is_empty() {
-                    result.push(unescape(&current)?);
+                    result.push((sgmt_start, input.len(), current));
                 }
 
                 if result.is_empty() {
-                    result.push("".to_string());
+                    let len = input.len();
+                    result.push((len, len, String::from("")));
                 }
 
-                Some(result)
+                Ok(result)
             }
 
-            //TODO error handling
-            let v = split_on_dollar(&s[1..s.len() - 1]).unwrap();
-            let mut out = CSTExpression::Om;
+            let v = match split_on_dollar(&unescape(&s[1..s.len() - 1], &ctx, err_str)) {
+                Ok(v) => v,
+                Err(rhs) => {
+                    report(
+                        ReportKind::Error,
+                        "parse error",
+                        "missing closing '$'",
+                        ctx.lhs,
+                        rhs,
+                        ctx.src,
+                        ctx.srcname,
+                        err_str,
+                    );
+                    *pass_failed = true;
+                    Vec::new()
+                }
+            };
+
+            let mut out = CSTExpression {
+                lhs: ctx.lhs,
+                rhs: ctx.rhs,
+                kind: CSTExpressionKind::Om,
+            };
 
             for (idx, i) in v.into_iter().enumerate() {
                 if idx == 0 {
-                    out = CSTExpression::Literal(i);
+                    out = CSTExpression {
+                        lhs: i.0,
+                        rhs: i.1,
+                        kind: CSTExpressionKind::Literal(i.2),
+                    }
                 } else if idx % 2 == 0 {
-                    out = CSTExpression::Op(CSTExpressionOp {
-                        op: CSTOp::Plus,
-                        left: Box::new(out),
-                        right: Box::new(CSTExpression::Literal(i)),
-                    });
+                    out = CSTExpression {
+                        lhs: out.lhs,
+                        rhs: i.1,
+                        kind: CSTExpressionKind::Op(CSTExpressionOp {
+                            op: CSTOp::Plus,
+                            left: Box::new(out),
+                            right: Box::new(CSTExpression {
+                                lhs: i.0,
+                                rhs: i.1,
+                                kind: CSTExpressionKind::Literal(i.2),
+                            }),
+                        }),
+                    };
                 } else {
-                    //TODO error handling
-                    let expr = pass_expr(
-                        setlx_parse::ExprParser::new().parse(&i).unwrap(),
-                        pass_failed,
-                    );
-                    out = CSTExpression::Op(CSTExpressionOp {
-                        op: CSTOp::Plus,
-                        left: Box::new(out),
-                        right: Box::new(expr),
-                    });
+                    let expr = match setlx_parse::ExprParser::new().parse(&i.2) {
+                        Ok(mut e) => {
+                            pass_offset::pass_expr(&mut e, i.0 + 1);
+                            pass_expr(&mut e, pass_failed, &ctx, err_str);
+                            e
+                        }
+                        Err(mut e) => {
+                            parse_err_add_offset(&mut e, i.0 + 1);
+                            report_parse_error(e, &i.2, ctx.srcname, err_str);
+                            *pass_failed = true;
+                            CSTExpression {
+                                lhs: i.0,
+                                rhs: i.1,
+                                kind: CSTExpressionKind::Om,
+                            }
+                        }
+                    };
+                    out = CSTExpression {
+                        lhs: i.0,
+                        rhs: i.1,
+                        kind: CSTExpressionKind::Op(CSTExpressionOp {
+                            op: CSTOp::Plus,
+                            left: Box::new(out),
+                            right: Box::new(CSTExpression {
+                                lhs: expr.lhs,
+                                rhs: expr.rhs,
+                                kind: CSTExpressionKind::Serialize(Box::new(expr)),
+                            }),
+                        }),
+                    };
                 }
             }
 
-            out
+            *e = out;
         }
+        CSTExpressionKind::Literal(l) => {
+            fn unescape_quotes(s: &str) -> String {
+                let mut out = String::with_capacity(s.len());
+                let mut chars = s.chars().peekable();
 
-        //TODO error handling
-        CSTExpression::Literal(l) => CSTExpression::Literal(unescape(&l[1..l.len() - 1]).unwrap()),
-        CSTExpression::Bool(b) => CSTExpression::Bool(b),
-        CSTExpression::Double(d) => CSTExpression::Double(d),
-        CSTExpression::Number(i) => CSTExpression::Number(i),
-        CSTExpression::Om => CSTExpression::Om,
-        CSTExpression::Ignore => CSTExpression::Ignore,
-        CSTExpression::Variable(s) => CSTExpression::Variable(s),
+                while let Some(c) = chars.next() {
+                    if c == '\'' && matches!(chars.peek(), Some('\'')) {
+                        let _ = chars.next();
+                    }
+                    out.push(c);
+                }
+
+                out
+            }
+            *l = unescape_quotes(&l[1..l.len() - 1]);
+        }
+        _ => (),
     }
 }
 
-fn pass_stmt(s: CSTStatement, pass_failed: &mut bool) -> CSTStatement {
-    match s {
-        CSTStatement::Class(c) => CSTStatement::Class(pass_class(c, pass_failed)),
-        CSTStatement::If(i) => CSTStatement::If(pass_if(i, pass_failed)),
-        CSTStatement::Switch(i) => CSTStatement::Switch(pass_if(i, pass_failed)),
-        CSTStatement::Match(m) => CSTStatement::Match(pass_match(m, pass_failed)),
-        CSTStatement::Scan(s) => CSTStatement::Scan(pass_scan(s, pass_failed)),
-        CSTStatement::For(f) => CSTStatement::For(pass_for(f, pass_failed)),
-        CSTStatement::DoWhile(w) => CSTStatement::DoWhile(pass_while(w, pass_failed)),
-        CSTStatement::While(w) => CSTStatement::While(pass_while(w, pass_failed)),
-        CSTStatement::TryCatch(t) => CSTStatement::TryCatch(pass_try(t, pass_failed)),
-        CSTStatement::Check(c) => CSTStatement::Check(pass_check(c, pass_failed)),
-        CSTStatement::Return(r) => CSTStatement::Return(pass_return(r, pass_failed)),
-        CSTStatement::Assign(a) => CSTStatement::Assign(pass_assign(a, pass_failed)),
-        CSTStatement::AssignMod(a) => CSTStatement::AssignMod(pass_assign_mod(a, pass_failed)),
-        CSTStatement::Expression(e) => CSTStatement::Expression(pass_expr(e, pass_failed)),
-        CSTStatement::Backtrack => CSTStatement::Backtrack,
-        CSTStatement::Break => CSTStatement::Break,
-        CSTStatement::Continue => CSTStatement::Continue,
-        CSTStatement::Exit => CSTStatement::Exit,
+fn pass_stmt(s: &mut CSTStatement, pass_failed: &mut bool, ictx: &StrCtx, err_str: &mut String) {
+    let ctx = ictx.set_pos(s.lhs, s.rhs);
+
+    match &mut s.kind {
+        CSTStatementKind::Class(c) => pass_class(c, pass_failed, &ctx, err_str),
+        CSTStatementKind::If(i) => pass_if(i, pass_failed, &ctx, err_str),
+        CSTStatementKind::Switch(i) => pass_if(i, pass_failed, &ctx, err_str),
+        CSTStatementKind::Match(m) => pass_match(m, pass_failed, &ctx, err_str),
+        CSTStatementKind::Scan(s) => pass_scan(s, pass_failed, &ctx, err_str),
+        CSTStatementKind::For(f) => pass_for(f, pass_failed, &ctx, err_str),
+        CSTStatementKind::DoWhile(w) => pass_while(w, pass_failed, &ctx, err_str),
+        CSTStatementKind::While(w) => pass_while(w, pass_failed, &ctx, err_str),
+        CSTStatementKind::TryCatch(t) => pass_try(t, pass_failed, &ctx, err_str),
+        CSTStatementKind::Check(c) => pass_check(c, pass_failed, &ctx, err_str),
+        CSTStatementKind::Return(r) => pass_return(r, pass_failed, &ctx, err_str),
+        CSTStatementKind::Assign(a) => pass_assign(a, pass_failed, &ctx, err_str),
+        CSTStatementKind::AssignMod(a) => pass_assign_mod(a, pass_failed, &ctx, err_str),
+        CSTStatementKind::Expression(e) => pass_expr(e, pass_failed, &ctx, err_str),
+        _ => (),
     }
 }
 
-fn pass_block(cst: CSTBlock, pass_failed: &mut bool) -> CSTBlock {
-    cst.into_iter().map(|i| pass_stmt(i, pass_failed)).collect()
+fn pass_block(cst: &mut CSTBlock, pass_failed: &mut bool, ctx: &StrCtx, err_str: &mut String) {
+    cst.iter_mut()
+        .for_each(|i| pass_stmt(i, pass_failed, ctx, err_str));
 }
 
-pub fn pass(mut cst: CSTBlock, opts: &InputOpts, pass_num: u64) -> CSTBlock {
+pub fn pass(
+    cst: &mut CSTBlock,
+    opts: &InputOpts,
+    src: &str,
+    pass_failed: &mut bool,
+    err_str: &mut String,
+    pass_num: u64,
+) {
     /* - literal formatting
      * - convert strings to literals
      */
-    let mut pass_failed = false;
+    let ctx = StrCtx::new(src, opts);
 
-    cst = pass_block(cst, &mut pass_failed);
-
-    // TODO error handling
-    assert!(!pass_failed);
+    pass_block(cst, pass_failed, &ctx, err_str);
 
     if opts.dump_cst_pass_string {
-        cst_dump(&cst, opts, &format!("{pass_num}-string"));
+        cst_dump(cst, opts, &format!("{pass_num}-string"));
     }
-
-    cst
 }

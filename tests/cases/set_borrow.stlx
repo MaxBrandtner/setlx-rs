@@ -1,0 +1,4 @@
+s:={1,2,3};
+first(s);
+last(s);
+print(s);

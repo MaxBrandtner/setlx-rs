@@ -1,0 +1,6 @@
+print(om == om);
+a := om;
+print(a == om);
+match (om) {
+	case b: c := b; print(c == om);
+}

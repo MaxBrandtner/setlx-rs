@@ -1,0 +1,12 @@
+a:=4;
+b:=5;
+c:=6;
+d:=7;
+
+match (@@@sum(1,2)) {
+	case a - b, c + d:
+		print(a);
+		print(b);
+		print(c);
+		print(d);
+}

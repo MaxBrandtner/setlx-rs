@@ -1,0 +1,27 @@
+while (true) {
+	try {
+		input := get("=> ");
+		try {
+			input_esc := input;
+			if (input_esc[-1..] == ';') {
+				input_esc := input_esc[..-2];
+			} else {
+				raise("");
+			}
+
+			result := eval(input_esc);
+		} catch (e) {
+			if (input != "") {
+				execute(input);
+			}
+
+			result := om;
+		}
+
+		if (input != "") {
+			print("~<Result: $result$ >~");
+		}
+	} catch (e) {
+		print(e);
+	}
+}

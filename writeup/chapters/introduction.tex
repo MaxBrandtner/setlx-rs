@@ -1,0 +1,17 @@
+\chapter{Introduction}
+
+\section{Motivation}
+
+SetlX\cite{setlx-tutorial} is a programming language designed to closely mirror the notation of mathematics and set theory. It draws inspiration from SETL\cite{schwartz-setl}, one of the first programming languages to offer sets and maps as first-class data types. As SetlX extends the concepts of SETL with a syntax that closely mimics set-theoretic and mathematical notations, the gap between the formal specification and a working implementation is reduced greatly. Thus, the language is ideal to teach and prototype algorithms in an academic context. This project explores the design of the language, by reimplementing it as an interpreter in the Rust programming language.
+
+\section{Problem Statement}
+
+The reference implementation of SetlX is an interpreter written in Java, using ANTLR4\cite{antlr4} as its parser generator. ANTLR4 uses the ALL(*) parsing strategy, a powerful but complex formalism that cannot be ported directly to other parser generators without introducing grammatical ambiguities. This project reimplements SetlX from the ground up in Rust, transforming the ANTLR4-based grammar into one expressed in LR(1) using LALRPOP\cite{lalrpop}. This shift requires a careful examination of the grammar, resolving ambiguities that ALL(*) handles implicitly, and producing an explicit, unambiguous grammar that satisfies the stricter requirements of a bottom-up parser.
+
+\section{Relevance}
+
+Reimplementing an existing language offers a concrete and well-scoped opportunity to engage with foundational topics in compiler and interpreter design. This project touches on several such topics: grammar engineering, the practical differences between parsing formalisms, and the construction of an interpreter pipeline in a systems programming language. The transition from ALL(*) to LR(1) in particular surfaces the tradeoffs between parser expressiveness and the constraints that more restricted formalisms impose. Rust, with its expressive type system and emphasis on correctness, is a natural fit for a project of this kind. The aim is not to improve SetlX as a tool, but to use its reimplementation as a way to study these topics in a practical setting.
+
+\section{Objective}
+
+This project aims to produce a working interpreter for SetlX in Rust\cite{rust}, with semantic equivalence to the reference implementation as its primary goal. A central part of this work is the transformation of the SetlX grammar from its original ANTLR4 form into a LR(1) grammar suitable for use with LALRPOP. The design prioritises clarity and maintainability of the implementation over raw performance, reflecting the academic nature of the project.

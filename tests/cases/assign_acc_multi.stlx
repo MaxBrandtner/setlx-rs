@@ -1,0 +1,8 @@
+pt := {[["test", []], 2]};
+a:="test";
+s:=[];
+rulesAS := {};
+alpha := {};
+
+pt[a,s] := rulesAS + { [a, alpha] };
+print(pt);

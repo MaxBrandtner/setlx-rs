@@ -1,0 +1,5 @@
+for (k in [1,2]) {
+	p := {i: i in [k] };
+}
+
+print(p);

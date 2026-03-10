@@ -1,0 +1,6 @@
+match (om) {
+	case "test": print("hi");
+	case om: print("ho");
+}
+
+print(parse("om") == om);

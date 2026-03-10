@@ -1,0 +1,115 @@
+class a() {
+	sum := procedure(that) {
+		return 1 + that;
+	};
+
+	difference := procedure(that) {
+		return 2 - that;
+	};
+
+	product := procedure (that) {
+		return 3 * that;
+	};
+
+	quotient := procedure (that) {
+		return 4 / that;
+	};
+
+	modulo := procedure (that) {
+		return 10 % that;
+	};
+
+	integerDivision := procedure (that) {
+		return 10 \ that;
+	};
+
+	cartesianProduct := procedure (that) {
+		return 20;
+	};
+
+	conjunction := procedure (that) {
+		return true;
+	};
+
+	disjunction := procedure (that) {
+		return false;
+	};
+
+	implication := procedure (that) {
+		return false;
+	};
+
+	equals := procedure (that) {
+		return true;
+	};
+
+	power := procedure (that) {
+		return 25;
+	};
+
+	not := procedure() {
+		return false;
+	};
+
+	cardinality := procedure() {
+		return 10;
+	};
+
+	minus := procedure() {
+		return 0;
+	};
+
+	factorial := procedure() {
+		return 10;
+	};
+
+	lessThan := procedure (that) {
+		return true;
+	};
+
+	f_str := procedure () {
+		return "hello world";
+	};
+
+	f_log := procedure() {
+		return 27;
+	};
+
+	f_exp := procedure() {
+		return 28;
+	};
+}
+
+b:=a();
+
+print(b+1);
+print(b-1);
+print(b*1);
+print(b/1.0);
+print(b%1);
+print(b\1);
+print(b><1);
+print(b&&1);
+print(b||1);
+print(b=>1);
+print(b==1);
+print(b**1);
+print(b<1);
+print(b<==>1);
+print(b<!=>1);
+print(!(b<==>1));
+print(b<=1);
+print(1>=b);
+print(1>b);
+print(b);
+print(log(b));
+print(exp(b));
+print(!b);
+print(-b);
+print(b!);
+print(#b);
+
+class c() {  f_str := procedure () { return "hi"; }; }
+d:=c();
+print(d==1);
+print(d+"test");

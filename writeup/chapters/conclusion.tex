@@ -1,0 +1,35 @@
+\chapter{Conclusion}
+
+\section{Summary and Reflection}
+
+This project has been a substantial undertaking. While I initially anticipated SetlX to be a small language, terms, classes, and matching are rich features that introduce considerable complexity.
+
+The main aim of this project as a student paper has been to implement a minimum viable product supporting the main features of the language. Though some predefined procedures are not yet implemented, all SetlX programs written for the Logic lecture of Karl Stroetmann are interpreted correctly though the output of three of the files contain minor visual artifacts. The SetlX example code is more of a mixed bag, because of unimplemented predefined procedures and bugs that haven't beeen squashed yet.
+
+Implementing the interpreter as a bytecode \ac{VM} increased the scope of the project significantly. While optimized bytecode \ac{VM}s are theoretically more performant than a tree-walking interpreter, these gains are not yet realized -- based on empirical observation, the interpreter currently runs approximately 15 times slower than the tree-walking reference implementation. On a technical note, it would have been better to implement the \ac{CST} to \ac{IR} conversion alongside the interpreter. Much of the initial \ac{IR} code had to be rewritten, and several instances of technical debt linger: \ac{IR} instructions are not single-purpose, and builtin procedures are represented as a flat enum rather than as dispatchable function pointers, which forces a branching match on every call. The intermediate heap simplified the initial implementation, but made memory bugs more difficult to debug. The heap was initially virtualized. As the \ac{IR} defines unsafe memory instructions, this did not provide additional safety guarantees but complicated the implementation and made memory debuggers ineffective. Writing comprehensive debugging tools proved invaluable throughout: whenever a bug resisted straightforward reasoning, improving the tooling consistently increased both the speed at which bugs could be resolved and the complexity of bugs that could be tackled.
+
+\section{Outlook}
+
+A number of areas remain where this interpreter must be improved before it becomes a compelling alternative to the reference implementation. These fall into three broad categories: semantic correctness, completeness, and performance.
+
+\subsection{Semantic Correctness}
+
+Several known semantic gaps exist between this implementation and the reference. Rational number arithmetic is not yet implemented: expressions such as \texttt{1/2} currently produce a floating-point result rather than the rational value the reference implementation returns.
+
+The \texttt{default} branch in \texttt{scan} statements is not currently executed. In the reference implementation, a variable introduced by a \texttt{case} branch in a \texttt{match} statement does not compare equal to \texttt{om}, even when the matched value is om itself. Ordinary variables assigned \texttt{om} do compare equal. This implementation does not replicate that distinction: a case-bound variable holding \texttt{om} compares equal to om like any other variable. Whether this constitutes an upstream bug in the reference implementation is unclear.
+
+Several test cases expose further correctness issues. \texttt{wolf-goat-cabbage.stlx} fails due to an unimplemented \texttt{removeQuote} operation. Several edge-cases exist where the resulting output is formatted differently from reference implementation. \texttt{evalTerm} and \texttt{parseStatements} do not correctly evaluate primitive values such as numbers, \texttt{args} and \texttt{fct} return incorrect results for parsed expressions, and array access operations succeed for terms even though the operation isn't defined for terms in the reference implementation.
+
+\subsection{Completeness}
+
+A number of predefined procedures remain unimplemented. The most straightforward to add are general-purpose string and collection procedures such as \texttt{canonical}, \texttt{rational}, \texttt{sort}, \texttt{shuffle}, \texttt{trim}, \texttt{toLowerCase}, \texttt{toUpperCase}, \texttt{startsWith}, \texttt{endsWith}, \texttt{collect}, \texttt{permutations}, and \texttt{nextPermutation}, as well as file operations including \texttt{readFile}, \texttt{writeFile}, \texttt{appendFile}, and \texttt{deleteFile}. Term introspection procedures such as \texttt{getTerm}, \texttt{getScope}, and \texttt{isMap} also remain unimplemented.
+
+Two larger subsystems require more substantial effort. The linear algebra extension -- covering \texttt{la\_matrix}, \texttt{la\_solve}, \texttt{la\_det}, \texttt{la\_eigenValues}, \texttt{la\_eigenVectors}, \texttt{la\_svd}, \texttt{la\_pseudoInverse}, and \texttt{la\_cond} -- and the plotting and statistical distribution families, which together comprise the majority of the remaining unimplemented surface area. \texttt{multiLineMode} and \texttt{trace} are out of scope for this implementation, as this interpreter uses different execution and debugging mechanisms; the built-in debugger is arguably more capable than the tracing facilities the reference implementation provides.
+
+\subsection{Performance}
+
+The interpreter currently executes the general \ac{IR} without any optimization passes. A simple expression such as 1+1 currently requires 25 instructions to evaluate where it could be reduced to a single constant. Value propagation and dead branch elimination would therefore improve performance substantially and are the most impactful optimizations to implement.
+
+Beyond optimization passes, several structural changes would improve baseline performance. A dedicated load instruction would eliminate the per-instruction conversion from \texttt{IRValue} to \texttt{InterpVal}. Making \ac{IR} instructions single-purpose and replacing the builtin procedure enum with dispatchable function pointers would reduce branching and improve branch predictor effectiveness. Together, these changes could plausibly improve interpreter throughput by well over an order of magnitude before any \ac{JIT} compilation is introduced.
+
+Block-level \ac{JIT} compilation represents another significant performance opportunity. The current dispatch loop interprets each \ac{IR} instruction by matching it in an if-else chain at runtime. A \ac{JIT} backend would eliminate this overhead entirely for hot code paths. As discussed in the background chapter, extending the interpreter with a \ac{JIT} backend would also require registering dynamic unwind information so that exceptions propagate correctly through compiled frames.

@@ -1,0 +1,3 @@
+print(fct(@nil()));
+print(fct(@@@nil()));
+print(fct(@@@sum(1,1)));

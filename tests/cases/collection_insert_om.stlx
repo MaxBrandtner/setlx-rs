@@ -1,0 +1,2 @@
+print([om,1]);
+print({om,1});

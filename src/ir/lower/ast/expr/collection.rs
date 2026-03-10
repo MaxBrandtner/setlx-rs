@@ -14,111 +14,136 @@ fn block_cst_set_push(
     target: IRTarget,
     proc: &mut IRProcedure,
 ) {
-    /* t_range := list_new(2);
-     * t_range_addr := &t_range;
-     * t_range_lhs := t_range_addr[0];
-     * *t_range_lhs := // expr;
-     * t_range_rhs := t_range_addr[1];
-     * *t_range_rhs := // expr;
-     * t_expressions := // exprs
-     * t_rest := // expr
-     * target := ast_node_new(name, t_range, t_expressions, t_rest);
-     */
-    let t_range = tmp_var_new(proc);
+    if s.range.is_none() && s.rest.is_none() {
+        /* // if name == set {
+         *  t_set := set_new();
+         * // } else {
+         *  t_set := list_new();
+         * //}
+         *
+         * // for i in expressions {
+         *  t_expr := // expr
+         *  // if name == set {
+         *   _ := set_insert(t_set, t_expr);
+         *  // } else {
+         *   _ := list_push(t_set, t_expr);
+         *  // }
+         * // }
+         * target := t_set;
+         */
+        let t_set = tmp_var_new(proc);
 
-    if let Some(range) = &s.range {
-        let t_range_addr = tmp_var_new(proc);
+        match name.as_str() {
+            "set" => block_get(proc, block_idx).push(IRStmt::Assign(IRAssign {
+                target: IRTarget::Variable(t_set),
+                types: IRType::SET,
+                source: IRValue::BuiltinProc(BuiltinProc::SetNew),
+                op: IROp::NativeCall(Vec::new()),
+            })),
+            "list" => block_get(proc, block_idx).push(IRStmt::Assign(IRAssign {
+                target: IRTarget::Variable(t_set),
+                types: IRType::LIST,
+                source: IRValue::BuiltinProc(BuiltinProc::ListNew),
+                op: IROp::NativeCall(Vec::new()),
+            })),
+            _ => unreachable!(),
+        }
+
+        for expr in &s.expressions {
+            let t_expr = tmp_var_new(proc);
+            block_cst_expr_push(expr, block_idx, IRTarget::Variable(t_expr), proc);
+            match name.as_str() {
+                "set" => block_get(proc, block_idx).push(IRStmt::Assign(IRAssign {
+                    target: IRTarget::Ignore,
+                    types: IRType::UNDEFINED,
+                    source: IRValue::BuiltinProc(BuiltinProc::SetInsert),
+                    op: IROp::NativeCall(vec![IRValue::Variable(t_set), IRValue::Variable(t_expr)]),
+                })),
+                "list" => block_get(proc, block_idx).push(IRStmt::Assign(IRAssign {
+                    target: IRTarget::Ignore,
+                    types: IRType::UNDEFINED,
+                    source: IRValue::BuiltinProc(BuiltinProc::ListPush),
+                    op: IROp::NativeCall(vec![IRValue::Variable(t_set), IRValue::Variable(t_expr)]),
+                })),
+                _ => unreachable!(),
+            }
+        }
+
+        block_get(proc, block_idx).push(IRStmt::Assign(IRAssign {
+            target,
+            types: IRType::SET | IRType::LIST,
+            source: IRValue::Variable(t_set),
+            op: IROp::Assign,
+        }));
+    } else {
+        /* t_range_lhs := // expr;
+         * t_range_rhs := // expr;
+         * t_expressions := // exprs
+         * t_rest := // expr
+         * target := ast_node_new(name, t_range_lhs, t_range_rhs, t_expressions, t_rest);
+         */
         let t_range_lhs = tmp_var_new(proc);
         let t_range_rhs = tmp_var_new(proc);
 
-        block_get(proc, block_idx).extend(vec![
-            IRStmt::Assign(IRAssign {
-                target: IRTarget::Variable(t_range),
-                types: IRType::LIST,
-                source: IRValue::BuiltinProc(BuiltinProc::ListNew),
-                op: IROp::NativeCall(vec![IRValue::Number(2.into())]),
-            }),
-            IRStmt::Assign(IRAssign {
-                target: IRTarget::Variable(t_range_addr),
-                types: IRType::PTR,
-                source: IRValue::Variable(t_range),
-                op: IROp::PtrAddress,
-            }),
-            IRStmt::Assign(IRAssign {
+        if let Some(range) = &s.range
+            && let Some(lhs) = &range.left
+        {
+            block_cst_expr_push(lhs, block_idx, IRTarget::Variable(t_range_lhs), proc);
+        } else {
+            block_get(proc, block_idx).push(IRStmt::Assign(IRAssign {
                 target: IRTarget::Variable(t_range_lhs),
-                types: IRType::PTR,
-                source: IRValue::Variable(t_range_addr),
-                op: IROp::AccessArray(IRValue::Number(0.into())),
-            }),
-            IRStmt::Assign(IRAssign {
+                types: IRType::UNDEFINED,
+                source: IRValue::Undefined,
+                op: IROp::Assign,
+            }));
+        }
+
+        if let Some(range) = &s.range
+            && let Some(rhs) = &range.right
+        {
+            block_cst_expr_push(rhs, block_idx, IRTarget::Variable(t_range_rhs), proc);
+        } else {
+            block_get(proc, block_idx).push(IRStmt::Assign(IRAssign {
                 target: IRTarget::Variable(t_range_rhs),
-                types: IRType::PTR,
-                source: IRValue::Variable(t_range_addr),
-                op: IROp::AccessArray(IRValue::Number(1.into())),
-            }),
-        ]);
-
-        if let Some(lhs) = &range.left {
-            block_cst_expr_push(&*lhs, block_idx, IRTarget::Deref(t_range_lhs), proc);
-        } else {
-            block_get(proc, block_idx).push(IRStmt::Assign(IRAssign {
-                target: IRTarget::Deref(t_range_lhs),
                 types: IRType::UNDEFINED,
                 source: IRValue::Undefined,
                 op: IROp::Assign,
             }));
         }
 
-        if let Some(rhs) = &range.right {
-            block_cst_expr_push(&*rhs, block_idx, IRTarget::Deref(t_range_rhs), proc);
+        let t_expressions = tmp_var_new(proc);
+        block_cst_expr_vec_push(
+            &s.expressions,
+            block_idx,
+            IRTarget::Variable(t_expressions),
+            proc,
+        );
+
+        let t_rest = tmp_var_new(proc);
+        if let Some(rest) = &s.rest {
+            block_cst_expr_push(rest, block_idx, IRTarget::Variable(t_rest), proc);
         } else {
             block_get(proc, block_idx).push(IRStmt::Assign(IRAssign {
-                target: IRTarget::Deref(t_range_rhs),
+                target: IRTarget::Variable(t_rest),
                 types: IRType::UNDEFINED,
                 source: IRValue::Undefined,
                 op: IROp::Assign,
             }));
         }
-    } else {
+
         block_get(proc, block_idx).push(IRStmt::Assign(IRAssign {
-            target: IRTarget::Variable(t_range),
-            types: IRType::UNDEFINED,
-            source: IRValue::Undefined,
-            op: IROp::Assign,
+            target,
+            types: IRType::AST,
+            source: IRValue::BuiltinProc(BuiltinProc::AstNodeNew),
+            op: IROp::NativeCall(vec![
+                IRValue::String(name),
+                IRValue::Variable(t_range_lhs),
+                IRValue::Variable(t_range_rhs),
+                IRValue::Variable(t_expressions),
+                IRValue::Variable(t_rest),
+            ]),
         }));
     }
-
-    let t_expressions = tmp_var_new(proc);
-    block_cst_expr_vec_push(
-        &s.expressions,
-        block_idx,
-        IRTarget::Variable(t_expressions),
-        proc,
-    );
-
-    let t_rest = tmp_var_new(proc);
-    if let Some(rest) = &s.rest {
-        block_cst_expr_push(&*rest, block_idx, IRTarget::Variable(t_rest), proc);
-    } else {
-        block_get(proc, block_idx).push(IRStmt::Assign(IRAssign {
-            target: IRTarget::Variable(t_rest),
-            types: IRType::UNDEFINED,
-            source: IRValue::Undefined,
-            op: IROp::Assign,
-        }));
-    }
-
-    block_get(proc, block_idx).push(IRStmt::Assign(IRAssign {
-        target,
-        types: IRType::AST,
-        source: IRValue::BuiltinProc(BuiltinProc::AstNodeNew),
-        op: IROp::NativeCall(vec![
-            IRValue::String(name),
-            IRValue::Variable(t_range),
-            IRValue::Variable(t_expressions),
-            IRValue::Variable(t_rest),
-        ]),
-    }));
 }
 
 fn block_cst_comprehension_push(
@@ -138,7 +163,7 @@ fn block_cst_comprehension_push(
     let t_cond = tmp_var_new(proc);
 
     block_cst_expr_push(
-        &*s.expression,
+        &s.expression,
         block_idx,
         IRTarget::Variable(t_expression),
         proc,
@@ -150,7 +175,7 @@ fn block_cst_comprehension_push(
         proc,
     );
     if let Some(cond) = &s.condition {
-        block_cst_expr_push(&*cond, block_idx, IRTarget::Variable(t_cond), proc);
+        block_cst_expr_push(cond, block_idx, IRTarget::Variable(t_cond), proc);
     } else {
         block_get(proc, block_idx).push(IRStmt::Assign(IRAssign {
             target: IRTarget::Variable(t_cond),

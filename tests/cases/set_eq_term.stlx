@@ -1,0 +1,4 @@
+print(parse("!q") <==> parse("a && b"));
+print(1 <==> parse("!q"));
+print(parse("!q") <==> 1);
+print(2 <==> 1);

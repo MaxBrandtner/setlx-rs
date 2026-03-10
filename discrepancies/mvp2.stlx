@@ -1,0 +1,15 @@
+class a() {
+	static {
+		y := 2;
+	}
+}
+
+b := a();
+print(b.y);
+a.y := 3;
+print(b.y);
+b.y := 1;
+print(a.y);
+print(b.y);
+a.y := 5;
+print(b.y);

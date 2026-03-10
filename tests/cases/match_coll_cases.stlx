@@ -1,0 +1,17 @@
+match ("ab") {
+	case [x,y]: print("$x$ $y$");
+}
+a:="ab";
+[x,y]:=a;
+print("$x$ $y$");
+print(a[5]);
+try {
+	print("hi");
+	[x,y] := [1,2,3];
+} catch (e) {
+	print("ho");
+}
+match ({1,2,3,4}) { case {x,y|r}: print("$x$ $y$ $r$");}
+match ([1,2,3]) { case {x|y}: print("$x$ $y$");}
+match (@term(1)) { case [a]: print("$a$"); }
+match ("abc") { case [a|[b,c]]: print("$a$ $b$ $c$");}

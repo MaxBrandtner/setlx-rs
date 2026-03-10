@@ -1,0 +1,4 @@
+class a() { static { y := 2; } }
+o := a();
+print(o.getClass().y);
+print(o.getClass().y);

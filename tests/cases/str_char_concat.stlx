@@ -1,0 +1,7 @@
+for (i in "hello") {
+	print(i + " ");
+	print(" " + i);
+	for (j in "world") {
+		print(i + j);
+	}
+}

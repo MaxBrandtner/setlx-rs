@@ -1,0 +1,11 @@
+eight_or_om := procedure(i) {
+	if (i == 8) {
+		return 8;
+	}
+
+	return om;
+};
+
+print({eight_or_om(i): i in [0..10]});
+print([eight_or_om(i): i in [0..10]]);
+print([om]);

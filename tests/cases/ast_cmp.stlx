@@ -1,0 +1,8 @@
+print(parse("true"));
+print(parse("true") == true);
+print(parse("1") == 1);
+print(parse("1.0") == 1);
+print(parse("'test'"));
+print(parse("'test'") == 'test');
+print(parse("\"test\"") == "test");
+print(<< 1 2 3 >>);

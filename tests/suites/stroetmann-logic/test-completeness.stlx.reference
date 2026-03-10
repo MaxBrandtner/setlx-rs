@@ -1,0 +1,21 @@
+
+Checking whether "p => p" is a tautology ...
+The formula p => p is a tautology.
+
+Checking whether "((p => q) => p) => p" is a tautology ...
+The formula ((p => q) => p) => p is a tautology.
+
+Checking whether "(p => q) => (q => p)" is a tautology ...
+number of newly derived clauses: 0
+The formula (p => q) => (q => p) is not a tautology. Counter example:
+{[p, false], [q, true]}
+
+Checking whether "p || (q && r) <==> (p || q) && (p || r)" is a tautology ...
+number of newly derived clauses: 23
+number of newly derived clauses: 28
+The formula p || (q && r) <==> (p || q) && (p || r) is a tautology.
+
+Checking whether "p && (q || r) <==> (p && q) || (p && r)" is a tautology ...
+number of newly derived clauses: 23
+number of newly derived clauses: 28
+The formula p && (q || r) <==> (p && q) || (p && r) is a tautology.

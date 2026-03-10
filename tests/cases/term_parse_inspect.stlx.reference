@@ -1,0 +1,27 @@
+-----
+@test(a)
+test
+true
+false
+false
+[a]
+a
+true
+-----
+@@@test(a)
+@@@test
+false
+true
+false
+[a]
+a
+true
+-----
+a + 1
+@@@sum
+false
+false
+true
+[a, 1]
+a
+true
