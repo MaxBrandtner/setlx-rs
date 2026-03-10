@@ -1,9 +1,14 @@
+use gag::BufferRedirect;
 use git2::Repository;
+use pretty_assertions::assert_eq;
 use serde_derive::Deserialize;
 use setlx_rs::{
-    cli::InputOpts, cst::cst_parse, ir::def::IRCfg, ir::lower::CSTIRLower, setlx_parse,
+    cli::InputOpts, cst::cst_parse, interp::exec::exec, ir::def::IRCfg, ir::lower::CSTIRLower,
+    setlx_parse,
 };
+use std::env::{current_dir, set_current_dir};
 use std::fs;
+use std::io::Read;
 use std::path::Path;
 use walkdir::WalkDir;
 
@@ -13,6 +18,7 @@ struct SuiteData {
     git: String,
     dir: String,
     blacklist: Vec<String>,
+    references: Option<String>,
 }
 
 fn suite_data_fetch() -> Vec<SuiteData> {
@@ -43,7 +49,12 @@ fn suites_clone(suites: &Vec<SuiteData>, test_path: &Path) {
     }
 }
 
-fn suites_test_tmpl(suites: &Vec<SuiteData>, test_path: &Path, step: &str, f: fn(&str)) {
+fn suites_test_tmpl(
+    suites: &Vec<SuiteData>,
+    test_path: &Path,
+    step: &str,
+    f: fn(&str, Option<String>),
+) {
     for i in suites {
         eprintln!("PROJECT: {}", i.name);
         let mut run_path = test_path.join(&i.name);
@@ -57,6 +68,7 @@ fn suites_test_tmpl(suites: &Vec<SuiteData>, test_path: &Path, step: &str, f: fn
                     && e.path().extension().and_then(|ext| ext.to_str()) == Some("stlx")
             })
         {
+            let parent_dir = j.path().parent().unwrap();
             let rel_path = j.path().strip_prefix(&run_path).unwrap();
             let pathname = rel_path.to_str().unwrap().to_string();
 
@@ -64,26 +76,64 @@ fn suites_test_tmpl(suites: &Vec<SuiteData>, test_path: &Path, step: &str, f: fn
                 continue;
             }
 
+            let cwd = current_dir().unwrap();
+            let reference_path = if let Some(r) = &i.references {
+                cwd.join(r).join(rel_path)
+            } else {
+                cwd.join(j.path())
+            }
+            .with_extension(
+                rel_path
+                    .extension()
+                    .map(|e| format!("{}.reference", e.to_string_lossy()))
+                    .unwrap(),
+            );
+
+            eprintln!("reference_path: {}", reference_path.display());
+
+            let reference =
+                fs::read(reference_path).map(|i| String::from_utf8_lossy(&i).into_owned()).ok();
+
+            set_current_dir(parent_dir).unwrap();
+
             eprintln!("{step}: {pathname}");
-            let bytes = fs::read(j.path()).unwrap();
+            let bytes = fs::read(j.path().file_name().unwrap()).unwrap();
             let contents = String::from_utf8_lossy(&bytes);
-            f(&contents);
+            f(&contents, reference);
+
+            set_current_dir(cwd).unwrap();
         }
     }
 }
 
-fn step_parse(content: &str) {
+fn step_parse(content: &str, _: Option<String>) {
     setlx_parse::BlockParser::new().parse(content).unwrap();
 }
 
-fn step_validate(content: &str) {
+fn step_validate(content: &str, _: Option<String>) {
     cst_parse(content, &InputOpts::none());
 }
 
-fn step_lower(content: &str) {
+fn step_lower(content: &str, _: Option<String>) {
     let opts = InputOpts::none();
     let cst = cst_parse(content, &opts);
     IRCfg::from_cst(&cst, &opts);
+}
+
+fn step_exec(content: &str, reference: Option<String>) {
+    let opts = InputOpts::none();
+    let cst = cst_parse(content, &opts);
+    let ir = IRCfg::from_cst(&cst, &opts);
+
+    let mut buf = BufferRedirect::stdout().unwrap();
+    exec(ir, &opts, content.to_string());
+
+    let mut output = String::new();
+    buf.read_to_string(&mut output).unwrap();
+
+    if let Some(reference) = reference {
+        assert_eq!(reference, output);
+    }
 }
 
 #[test]
@@ -100,4 +150,5 @@ fn suites_main() {
     suites_test_tmpl(&suites, test_path, "parsing", step_parse);
     suites_test_tmpl(&suites, test_path, "validating", step_validate);
     suites_test_tmpl(&suites, test_path, "lowering", step_lower);
+    suites_test_tmpl(&suites, test_path, "exec", step_exec);
 }

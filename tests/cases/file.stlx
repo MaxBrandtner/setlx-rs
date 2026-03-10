@@ -1,0 +1,5 @@
+writeFile("00bdb279-75dd-4bd8-8901-cd4fa1bf7ab7", "foo");
+writeFile("00bdb279-75dd-4bd8-8901-cd4fa1bf7ab7", "bar");
+writeFile("00bdb279-75dd-4bd8-8901-cd4fa1bf7ab7", ["baz", "wiz"]);
+print(readFile("00bdb279-75dd-4bd8-8901-cd4fa1bf7ab7"));
+deleteFile("00bdb279-75dd-4bd8-8901-cd4fa1bf7ab7");

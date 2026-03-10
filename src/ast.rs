@@ -4,7 +4,14 @@ use strum_macros::{EnumString, Display};
 pub type CSTBlock = Vec<CSTStatement>;
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum CSTStatement {
+pub struct CSTStatement {
+    pub lhs: usize,
+    pub rhs: usize,
+    pub kind: CSTStatementKind
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum CSTStatementKind {
     Class(CSTClass),
     If(CSTIf),
     Switch(CSTIf),
@@ -27,7 +34,14 @@ pub enum CSTStatement {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum CSTExpression {
+pub struct CSTExpression {
+    pub lhs: usize,
+    pub rhs: usize,
+    pub kind: CSTExpressionKind,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum CSTExpressionKind {
     Lambda(CSTLambda),
     Op(CSTExpressionOp),
     UnaryOp(CSTExpressionUnaryOp),
@@ -50,6 +64,8 @@ pub enum CSTExpression {
 
     Om,
     Ignore,
+
+    Serialize(Box<CSTExpression>),
 }
 
 #[derive(Clone, Debug, Display, EnumString, PartialEq)]
@@ -90,9 +106,12 @@ pub struct CSTExpressionOp {
 #[derive(Clone, Debug, Display, EnumString, PartialEq)]
 #[strum(serialize_all = "camelCase")]
 pub enum CSTUnaryOp {
+    #[strum(serialize = "unaryMinus")]
     Minus,    //   -
     Card,     //   #
+    #[strum(serialize = "unarySumMem")]
     SumMem,   //  +/
+    #[strum(serialize = "unaryProdMem")]
     ProdMem,  //  */
     Factor,   //   !
     Not,      //   !
@@ -258,6 +277,8 @@ pub struct CSTScan {
     pub expression: CSTExpression,
     pub variable: Option<String>,
     pub branches: Vec<CSTMatchBranch>, // always resolves to CSTMatchBranchRegex
+    // TODO: implement default
+    pub default: Option<CSTBlock>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

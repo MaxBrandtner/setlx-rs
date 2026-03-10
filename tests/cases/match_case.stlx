@@ -1,0 +1,4 @@
+match ("input") {
+	case "input": print("hello");
+	default: print("world");
+}

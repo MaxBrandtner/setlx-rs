@@ -1,0 +1,25 @@
+class a(test) {
+	this.test := test;
+	this.test += 1;
+	print("-----");
+	print(test);
+	print(this.test);
+	print("-----");
+}
+b := a(1);
+print(b.test);
+
+class c (test) {
+	this.test := test;
+	this.test += 1;
+	print("-----");
+	print(test);
+	print(this.test);
+	test -= 1;
+	print(test);
+	print(this.test);
+	print("-----");
+}
+
+d := c(10);
+print(d.test);

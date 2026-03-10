@@ -25,8 +25,8 @@ pub fn block_cst_stmt_push(
     target: IRTarget,
     proc: &mut IRProcedure,
 ) {
-    match stmt {
-        CSTStatement::Class(c) => {
+    match &stmt.kind {
+        CSTStatementKind::Class(c) => {
             /* t_params := // params
              * t_block := // block
              * t_static_block := // block
@@ -62,16 +62,16 @@ pub fn block_cst_stmt_push(
                 ]),
             }));
         }
-        CSTStatement::If(i) => {
+        CSTStatementKind::If(i) => {
             block_cst_if_push("if".to_string(), i, block_idx, target, proc);
         }
-        CSTStatement::Switch(i) => {
+        CSTStatementKind::Switch(i) => {
             block_cst_if_push("switch".to_string(), i, block_idx, target, proc);
         }
-        CSTStatement::Match(m) => {
+        CSTStatementKind::Match(m) => {
             block_cst_match_push(m, block_idx, target, proc);
         }
-        CSTStatement::Scan(s) => {
+        CSTStatementKind::Scan(s) => {
             /* t_expr := //expr
              * t_branches := // branches
              * target := ast_node_new("scan", t_expr, s.variable, t_branches);
@@ -102,7 +102,7 @@ pub fn block_cst_stmt_push(
                 ]),
             }));
         }
-        CSTStatement::For(f) => {
+        CSTStatementKind::For(f) => {
             /* t_params := // iter params
              * t_cond := // expr
              * t_block := // block
@@ -133,7 +133,7 @@ pub fn block_cst_stmt_push(
                 ]),
             }));
         }
-        CSTStatement::While(w) => {
+        CSTStatementKind::While(w) => {
             /* t_cond := // expr
              * t_block := //block
              * target := ast_node_new("while", t_cond, t_block);
@@ -155,7 +155,7 @@ pub fn block_cst_stmt_push(
                 ]),
             }));
         }
-        CSTStatement::DoWhile(w) => {
+        CSTStatementKind::DoWhile(w) => {
             /* t_cond := // expr
              * t_block := //block
              * target := ast_node_new("doWhile", t_cond, t_block);
@@ -177,10 +177,10 @@ pub fn block_cst_stmt_push(
                 ]),
             }));
         }
-        CSTStatement::TryCatch(c) => {
+        CSTStatementKind::TryCatch(c) => {
             block_cst_try_catch_push(c, block_idx, target, proc);
         }
-        CSTStatement::Check(c) => {
+        CSTStatementKind::Check(c) => {
             /* t_block := // block
              * t_ab := // block
              * target := ast_node_new("check", t_block, t_ab);
@@ -206,7 +206,7 @@ pub fn block_cst_stmt_push(
                 ]),
             }));
         }
-        CSTStatement::Return(e) => {
+        CSTStatementKind::Return(e) => {
             /* t_ret := //expr
              *  target := ast_node_new("return", t_ret);
              */
@@ -222,7 +222,7 @@ pub fn block_cst_stmt_push(
                 ]),
             }));
         }
-        CSTStatement::Assign(a) => {
+        CSTStatementKind::Assign(a) => {
             /* t_assign := //expr
              * t_expr := //stmt
              * target := ast_node_new("assign", t_assign, t_expr);
@@ -231,7 +231,7 @@ pub fn block_cst_stmt_push(
             let t_expr = tmp_var_new(proc);
 
             block_cst_expr_push(&a.assign, block_idx, IRTarget::Variable(t_assign), proc);
-            block_cst_stmt_push(&*a.expr, block_idx, IRTarget::Variable(t_expr), proc);
+            block_cst_stmt_push(&a.expr, block_idx, IRTarget::Variable(t_expr), proc);
             block_get(proc, block_idx).push(IRStmt::Assign(IRAssign {
                 target,
                 types: IRType::AST,
@@ -243,7 +243,7 @@ pub fn block_cst_stmt_push(
                 ]),
             }));
         }
-        CSTStatement::AssignMod(a) => {
+        CSTStatementKind::AssignMod(a) => {
             /* t_assign := //expr
              * t_expr := //expr
              * target := ast_node_new(a.kind.to_string(), t_assign, t_expr);
@@ -264,51 +264,43 @@ pub fn block_cst_stmt_push(
                 ]),
             }));
         }
-        CSTStatement::Expression(e) => {
+        CSTStatementKind::Expression(e) => {
             block_cst_expr_push(e, block_idx, target, proc);
         }
-        CSTStatement::Backtrack => {
+        CSTStatementKind::Backtrack => {
             // target := ast_node_new("backtrack");
             block_get(proc, block_idx).push(IRStmt::Assign(IRAssign {
                 target,
                 types: IRType::AST,
                 source: IRValue::BuiltinProc(BuiltinProc::AstNodeNew),
-                op: IROp::NativeCall(vec![
-                    IRValue::String("backtrack".to_string()),
-                ]),
+                op: IROp::NativeCall(vec![IRValue::String("backtrack".to_string())]),
             }));
         }
-        CSTStatement::Break => {
+        CSTStatementKind::Break => {
             // target := ast_node_new("break");
             block_get(proc, block_idx).push(IRStmt::Assign(IRAssign {
                 target,
                 types: IRType::AST,
                 source: IRValue::BuiltinProc(BuiltinProc::AstNodeNew),
-                op: IROp::NativeCall(vec![
-                    IRValue::String("break".to_string()),
-                ]),
+                op: IROp::NativeCall(vec![IRValue::String("break".to_string())]),
             }));
         }
-        CSTStatement::Continue => {
+        CSTStatementKind::Continue => {
             // target := ast_node_new("continue");
             block_get(proc, block_idx).push(IRStmt::Assign(IRAssign {
                 target,
                 types: IRType::AST,
                 source: IRValue::BuiltinProc(BuiltinProc::AstNodeNew),
-                op: IROp::NativeCall(vec![
-                    IRValue::String("Continue".to_string()),
-                ]),
+                op: IROp::NativeCall(vec![IRValue::String("Continue".to_string())]),
             }));
         }
-        CSTStatement::Exit => {
+        CSTStatementKind::Exit => {
             // target := ast_node_new("exit");
             block_get(proc, block_idx).push(IRStmt::Assign(IRAssign {
                 target,
                 types: IRType::AST,
                 source: IRValue::BuiltinProc(BuiltinProc::AstNodeNew),
-                op: IROp::NativeCall(vec![
-                    IRValue::String("exit".to_string()),
-                ]),
+                op: IROp::NativeCall(vec![IRValue::String("exit".to_string())]),
             }));
         }
     }

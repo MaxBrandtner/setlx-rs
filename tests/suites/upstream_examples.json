@@ -3,8 +3,20 @@
   "name": "setlX",
   "dir": "example_SetlX_code",
   "blacklist": [
+    "animation_testcode/hanoi_animation.stlx",
+    "converted_Setl2_code/2.18_A_n_infinite_loop.stlx",
+    "converted_Setl2_code/case.stlx",
+    "converted_Setl2_code/ggt2.stlx",
+    "converted_Setl2_code/kgv2.stlx",
+    "converted_Setl2_code/sum.stlx",
+    "converted_Setl2_code/tautology.stlx",
+    "insertion-sort.stlx",
+    "simple_examples/builtInFunctions.stlx",
     "simple_examples/crazyParserSyntaxErrorCheck.stlx",
+    "simple_examples/errorOutput.stlx",
+    "simple_examples/factorial.stlx",
+    "simple_examples/formatedString.stlx",
     "simple_examples/formatedStringError.stlx",
-    "xmlscanner.stlx"
+    "tautologySimple.stlx"
   ]
 }

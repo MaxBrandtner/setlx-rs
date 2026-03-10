@@ -1,0 +1,7 @@
+a := s |-> print(s);
+
+b := procedure() {
+	a("hi");
+};
+
+b();

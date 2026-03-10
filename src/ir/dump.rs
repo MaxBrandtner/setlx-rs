@@ -1,6 +1,8 @@
 use petgraph::stable_graph::NodeIndex;
 use petgraph::visit::IntoNodeReferences;
+use std::cell::RefCell;
 use std::io::Write;
+use std::rc::Rc;
 
 use crate::cli::InputOpts;
 use crate::ir::def::*;
@@ -14,7 +16,7 @@ fn ir_dump_val(a: &IRValue, out: &mut String) {
         IRValue::Double(i) => out.push_str(&format!("{i}")),
         IRValue::String(i) => out.push_str(&format!("\"{i}\"")),
         IRValue::Bool(b) => out.push_str(&format!("{:?}", b)),
-        IRValue::Procedure(p) => out.push_str(&format!("_{} /* procedure */", p.index())),
+        IRValue::Procedure(p) => out.push_str(&format!("_{} /* procedure */", p.borrow().tag)),
         IRValue::Matrix(m) => {
             out.push_str("<<");
             m.iter().for_each(|v| {
@@ -46,6 +48,7 @@ fn ir_dump_val(a: &IRValue, out: &mut String) {
         IRValue::BuiltinProc(p) => out.push_str(&format!("{}", p)),
         IRValue::BuiltinVar(p) => out.push_str(&format!("{}", p)),
         IRValue::Type(p) => out.push_str(&format!("TYPE_{}", p)),
+        IRValue::HeapRef(r) => out.push_str(&format!("(heap_ref) {:#?}", r)),
     }
 }
 
@@ -156,10 +159,11 @@ fn ir_dump_stmt_try(a: &IRTry, out: &mut String) {
     out.push_str(&format!("\tgoto <bb{}>\n", a.catch.index()));
 }
 
-fn ir_dump_stmt(stmt: &IRStmt, out: &mut String) {
+pub fn ir_dump_stmt(stmt: &IRStmt, out: &mut String) {
     out.push('\t');
 
     match stmt {
+        IRStmt::Annotate(lhs, rhs) => out.push_str(&format!("/* source section {lhs} {rhs} */")),
         IRStmt::Assign(a) => ir_dump_stmt_assign(a, out),
         IRStmt::Branch(a) => ir_dump_stmt_br(a, out),
         IRStmt::Return(a) => {
@@ -168,7 +172,7 @@ fn ir_dump_stmt(stmt: &IRStmt, out: &mut String) {
             out.push_str(";\n");
         }
         IRStmt::Try(a) => ir_dump_stmt_try(a, out),
-        IRStmt::TryEnd => out.push_str("//try_end;"),
+        IRStmt::TryEnd(idx) => out.push_str(&format!("try_end <bb{}>\n", idx.index())),
         IRStmt::Goto(idx) => out.push_str(&format!("goto <bb{}>\n", idx.index())),
         IRStmt::Unreachable => out.push_str("unreachable;"),
     }
@@ -176,7 +180,7 @@ fn ir_dump_stmt(stmt: &IRStmt, out: &mut String) {
     out.push('\n');
 }
 
-fn ir_dump_block(procedure: &IRProcedure, idx: NodeIndex, bb: &IRBlock, out: &mut String) {
+pub fn ir_dump_block(procedure: &IRProcedure, idx: NodeIndex, bb: &IRBlock, out: &mut String) {
     if procedure.start_block == idx {
         out.push_str("//start block\n");
     }
@@ -192,15 +196,15 @@ fn ir_dump_block(procedure: &IRProcedure, idx: NodeIndex, bb: &IRBlock, out: &mu
     }
 }
 
-fn ir_dump_procedure(cfg: &IRCfg, idx: NodeIndex, procedure: &IRProcedure, out: &mut String) {
-    if cfg.main == idx {
+fn ir_dump_procedure(cfg: &IRCfg, procedure: Rc<RefCell<IRProcedure>>, out: &mut String) {
+    if Rc::as_ptr(&cfg.main) == Rc::as_ptr(&procedure) {
         out.push_str("//main\n");
     }
 
-    out.push_str(&format!("_{}(){{\n", idx.index()));
+    out.push_str(&format!("_{}(){{\n", procedure.borrow().tag));
 
-    for (idx, bb) in procedure.blocks.node_references() {
-        ir_dump_block(procedure, idx, bb, out);
+    for (idx, bb) in procedure.borrow().blocks.node_references() {
+        ir_dump_block(&procedure.borrow(), idx, bb, out);
     }
 
     out.push('}');
@@ -210,7 +214,7 @@ pub fn ir_dump_str(cfg: &IRCfg) -> String {
     let mut out = String::from("");
 
     for (idx, procedure) in cfg.procedures.node_references() {
-        ir_dump_procedure(cfg, idx, procedure, &mut out);
+        ir_dump_procedure(cfg, procedure.clone(), &mut out);
         if idx.index() + 1 < cfg.procedures.node_count() {
             out.push_str("\n\n");
         }
@@ -220,9 +224,6 @@ pub fn ir_dump_str(cfg: &IRCfg) -> String {
 }
 
 pub fn ir_dump(cfg: &IRCfg, opts: &InputOpts, pass_name: &str) {
-    let mut file = debug_file_create(format!("{}-ir-{pass_name}.dump", &opts.stem));
-    writeln!(&mut file, "{:?}", cfg).unwrap();
-
     let ir_str = ir_dump_str(cfg);
     let mut file = debug_file_create(format!("{}-ir-{pass_name}.ir", &opts.stem));
     file.write_all(ir_str.as_bytes()).unwrap();

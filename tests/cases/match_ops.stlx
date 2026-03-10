@@ -1,0 +1,7 @@
+match (parse("1<==>3")) {
+	case g <==> h: print("$g$ $h$");
+}
+
+match (parse("!true")) {
+	case !a: print(a);
+}

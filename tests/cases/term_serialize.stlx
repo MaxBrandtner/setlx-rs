@@ -1,0 +1,2 @@
+a:=@term(1,1);
+print("some $a$ test");

@@ -1,0 +1,7 @@
+The knf of a && !b <==> !b && a is {}
+The knf of a => b <==> !a && b is {{!a, !b}, {a, b}}
+The knf of (p && q => r) || !r => !p is {{!p, !r}, {!p, q}, {!p, r}}
+The knf of (p => q) => (!p => q) => q is {}
+The knf of (p => q) && (q => r) => p => r is {}
+The knf of (p => q) => !p => !q is {{!q, p}}
+The knf of (p => q) && (!p => !q) => q => p is {}

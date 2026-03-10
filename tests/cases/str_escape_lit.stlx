@@ -1,0 +1,4 @@
+print("\w+");
+print("\n");
+print('\w+');
+print('\n');

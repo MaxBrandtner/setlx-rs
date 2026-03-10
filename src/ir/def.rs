@@ -2,39 +2,32 @@ use bitflags::bitflags;
 use num_bigint::BigInt;
 use petgraph::Directed;
 use petgraph::stable_graph::{NodeIndex, StableGraph};
+use std::cell::RefCell;
 use std::fmt;
+use std::rc::Rc;
 
 use crate::builtin::{BuiltinProc, BuiltinVar};
+use crate::interp::heap::InterpObjRef;
 
 #[derive(Debug)]
 pub struct IRCfg {
-    pub procedures: StableGraph<IRProcedure, (), Directed>,
-    pub main: NodeIndex,
-    pub n_cached: usize,
+    pub procedures: StableGraph<Rc<RefCell<IRProcedure>>, (), Directed>,
+    pub main: Rc<RefCell<IRProcedure>>,
+}
+
+impl IRCfg {
+    pub fn from_proc(main: Rc<RefCell<IRProcedure>>) -> Self {
+        IRCfg {
+            procedures: StableGraph::new(),
+            main,
+        }
+    }
 }
 
 #[macro_export]
 macro_rules! IRTypes {
     ("any") => {
-        IRType::PROCEDURE
-            | IRType::CLOSURE
-            | IRType::OBJECT
-            | IRType::CLASS
-            | IRType::NATIVE_REGEX
-            | IRType::ITERATOR
-            | IRType::SET
-            | IRType::LIST
-            | IRType::TERM
-            | IRType::TTERM
-            | IRType::AST
-            | IRType::STRING
-            | IRType::BOOL
-            | IRType::NUMBER
-            | IRType::DOUBLE
-            | IRType::MATRIX
-            | IRType::VECTOR
-            | IRType::UNDEFINED
-            | IRType::TYPE
+        IRType::all() - IRType::PTR
     };
     ("plus") => {
         IRType::SET
@@ -46,10 +39,15 @@ macro_rules! IRTypes {
             | IRType::VECTOR
     };
     ("minus") => {
-        IRType::NUMBER | IRType::DOUBLE | IRType::MATRIX | IRType::VECTOR
+        IRType::SET | IRType::NUMBER | IRType::DOUBLE | IRType::MATRIX | IRType::VECTOR
     };
     ("mul") => {
-        IRType::STRING | IRType::NUMBER | IRType::DOUBLE | IRType::MATRIX | IRType::VECTOR
+        IRType::SET
+            | IRType::STRING
+            | IRType::NUMBER
+            | IRType::DOUBLE
+            | IRType::MATRIX
+            | IRType::VECTOR
     };
     ("quot") => {
         IRType::NUMBER | IRType::DOUBLE | IRType::MATRIX | IRType::VECTOR
@@ -67,7 +65,6 @@ bitflags! {
     ///
     /// This applies to the following types in particular:
     /// - [`PROCEDURE`]
-    /// - [`CLOSURE`]
     /// - [`OBJECT`]
     /// - [`CLASS`]
     /// - [`NATIVE_REGEX`]
@@ -79,28 +76,41 @@ bitflags! {
     /// - [`NUMBER`]
     /// - [`MATRIX`]
     /// - [`VECTOR`]
-    #[derive(Clone, Debug)]
+    #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
     pub struct IRType: u32 {
-        const PTR          = 1 << 0;
-        const PROCEDURE    = 1 << 1; // "proc"
-        const CLOSURE      = 1 << 2; // "clos"
-        const OBJECT       = 1 << 3; // "obj"
-        const CLASS        = 1 << 4;
-        const NATIVE_REGEX = 1 << 5;
-        const ITERATOR     = 1 << 6; // "iter"
-        const SET          = 1 << 7;
-        const LIST         = 1 << 8;
-        const TERM         = 1 << 9;
-        const TTERM        = 1 << 10;
-        const AST          = 1 << 11;
-        const STRING       = 1 << 12;
-        const BOOL         = 1 << 13;
-        const NUMBER       = 1 << 14;
-        const DOUBLE       = 1 << 15; // "float"
-        const MATRIX       = 1 << 16;
-        const VECTOR       = 1 << 17;
-        const TYPE         = 1 << 18;
-        const UNDEFINED    = 1 << 19; // "om"
+        const PTR           = 1 << 0;
+        const PROCEDURE     = 1 << 1; // "proc"
+        const OBJECT        = 1 << 2; // "obj"
+        const CLASS         = 1 << 3;
+        const NATIVE_REGEX  = 1 << 4;
+        const STRING_ITER   = 1 << 5;
+        const SET           = 1 << 6;
+        const LIST          = 1 << 7;
+        const TERM          = 1 << 8;
+        const TTERM         = 1 << 9;
+        const AST           = 1 << 10;
+        const STRING        = 1 << 11;
+        const BOOL          = 1 << 12;
+        const NUMBER        = 1 << 13;
+        //const FLOAT         = 1 << 14; // "float"
+        const MATRIX        = 1 << 15;
+        const VECTOR        = 1 << 16;
+        const TYPE          = 1 << 17;
+        const UNDEFINED     = 1 << 18; // "om"
+        const STACK_IMAGE   = 1 << 19;
+        /*const STRING_SLICE  = 1 << 20;
+        const LIST_SLICE    = 1 << 21;
+        const SET_ITER      = 1 << 22;
+        const LIST_ITER     = 1 << 23;
+        const STATIC_STR    = 1 << 24;
+        const INT64         = 1 << 25;
+        const ASSIGN_STRING = 1 << 26;
+        */
+        const DOUBLE = 1 << 27;
+        const ITERATOR = 1 << 28;
+        const FILE = 1 << 29;
+        const OBJ_ITER = 1 << 30;
+        const HEAP_REF = 1 << 31;
     }
 }
 
@@ -115,9 +125,6 @@ impl fmt::Display for IRType {
         if self.contains(IRType::PROCEDURE) {
             parts.push("proc");
         }
-        if self.contains(IRType::CLOSURE) {
-            parts.push("clos");
-        }
         if self.contains(IRType::OBJECT) {
             parts.push("obj");
         }
@@ -126,9 +133,6 @@ impl fmt::Display for IRType {
         }
         if self.contains(IRType::NATIVE_REGEX) {
             parts.push("native_regex");
-        }
-        if self.contains(IRType::ITERATOR) {
-            parts.push("iter");
         }
         if self.contains(IRType::SET) {
             parts.push("set");
@@ -170,6 +174,14 @@ impl fmt::Display for IRType {
             parts.push("om");
         }
 
+        if self.contains(IRType::STACK_IMAGE) {
+            parts.push("stack_image");
+        }
+
+        if self.contains(IRType::OBJ_ITER) {
+            parts.push("obj_iter");
+        }
+
         // If no flags are set, print nothing or a placeholder
         if parts.is_empty() {
             write!(f, "<empty>")
@@ -181,22 +193,36 @@ impl fmt::Display for IRType {
 
 pub type IRVar = usize;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct IRProcedure {
     pub start_block: NodeIndex,
     pub end_block: NodeIndex,
     pub blocks: StableGraph<IRBlock, (), Directed>,
     pub vars: Vec<IRVar>,
+    pub tag: String,
+}
+
+impl IRProcedure {
+    pub fn from_tag(tag: &str) -> Self {
+        IRProcedure {
+            start_block: NodeIndex::from(0),
+            end_block: NodeIndex::from(0),
+            blocks: StableGraph::new(),
+            vars: Vec::new(),
+            tag: String::from(tag),
+        }
+    }
 }
 
 pub type IRBlock = Vec<IRStmt>;
 
 #[derive(Clone, Debug)]
 pub enum IRStmt {
+    Annotate(usize, usize),
     Assign(IRAssign),
     Branch(IRBranch),
     Try(IRTry),
-    TryEnd,
+    TryEnd(NodeIndex),
     Goto(NodeIndex),
     Return(IRValue),
     Unreachable,
@@ -251,7 +277,8 @@ pub enum IRValue {
     Bool(bool),
     Vector(Vec<IRValue>),
     Matrix(Vec<Vec<IRValue>>),
-    Procedure(NodeIndex),
+    Procedure(Rc<RefCell<IRProcedure>>),
+    HeapRef(InterpObjRef),
 }
 
 #[derive(Clone, Debug)]

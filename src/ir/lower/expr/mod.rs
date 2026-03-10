@@ -2,9 +2,10 @@ pub mod access_expr;
 mod call_expr;
 mod collection_expr;
 mod lambda_expr;
-mod op_expr;
+pub mod op_expr;
 mod quant_expr;
-mod term_expr;
+mod set_mem_ops;
+pub mod term_expr;
 mod unary_op_expr;
 pub mod var_expr;
 
@@ -28,6 +29,13 @@ use crate::ir::lower::ast::expr::block_cst_expr_push;
 use crate::ir::lower::proc::procedure_new;
 use crate::ir::lower::util::{block_get, tmp_var_new};
 
+/// Compiles a CST expression into IR, appending statements to the current
+/// block. The result of the expression is written into `target`.
+///
+/// - `expr` — the CST expression node to compile
+/// - `block_idx` — the current block being written to; may be advanced
+///   forward if the expression requires new blocks
+/// - `target` — where to store the result of the compiled expression
 pub fn block_expr_push(
     expr: &CSTExpression,
     block_idx: &mut NodeIndex,
@@ -36,53 +44,96 @@ pub fn block_expr_push(
     shared_proc: &mut IRSharedProc,
     cfg: &mut IRCfg,
 ) -> bool /* owned target  */ {
-    match expr {
-        CSTExpression::Lambda(_) => {
+    let lhs_old = shared_proc.code_lhs;
+    let rhs_old = shared_proc.code_rhs;
+    if !shared_proc.disable_annotations {
+        block_get(proc, *block_idx).push(IRStmt::Annotate(expr.lhs, expr.rhs));
+    }
+    shared_proc.code_lhs = expr.lhs;
+    shared_proc.code_rhs = expr.rhs;
+
+    let out = match &expr.kind {
+        CSTExpressionKind::Lambda(_) => {
             block_lambda_push(expr, block_idx, target, proc, cfg);
             true
         }
-        CSTExpression::Op(c) => {
+        CSTExpressionKind::Op(c) => {
             block_op_push(c, block_idx, target, proc, shared_proc, cfg);
             true
         }
-        CSTExpression::UnaryOp(c) => {
+        CSTExpressionKind::UnaryOp(c) => {
             block_unary_op_push(c, block_idx, target, proc, shared_proc, cfg);
             true
         }
-        CSTExpression::Procedure(p) => {
+        CSTExpressionKind::Procedure(p) => {
             /* t_info := // cst expr
+             * if p.kind == CSTProcedureKind::Closure {
+             *  t_stack := stack_copy();
+             * // }
              * target := procedure_new(_1, t_info);
              */
-            let p_idx = procedure_new(&p.block, &p.kind, &p.params, &p.list_param, cfg);
+            let p_idx = procedure_new(
+                &p.block,
+                &p.kind,
+                &p.params,
+                &p.list_param,
+                shared_proc.disable_annotations,
+                cfg,
+            );
             let t_info = tmp_var_new(proc);
             block_cst_expr_push(expr, *block_idx, IRTarget::Variable(t_info), proc);
+
+            let t_stack = if matches!(&p.kind, CSTProcedureKind::Closure) {
+                let t_stack = tmp_var_new(proc);
+
+                block_get(proc, *block_idx).push(IRStmt::Assign(IRAssign {
+                    target: IRTarget::Variable(t_stack),
+                    types: IRType::STACK_IMAGE,
+                    source: IRValue::BuiltinProc(BuiltinProc::StackCopy),
+                    op: IROp::NativeCall(vec![]),
+                }));
+
+                Some(t_stack)
+            } else {
+                None
+            };
+
             block_get(proc, *block_idx).push(IRStmt::Assign(IRAssign {
                 target,
                 types: IRType::PROCEDURE,
                 source: IRValue::BuiltinProc(BuiltinProc::ProcedureNew),
-                op: IROp::NativeCall(vec![IRValue::Procedure(p_idx), IRValue::Variable(t_info)]),
+                op: IROp::NativeCall(vec![
+                    IRValue::Procedure(p_idx),
+                    IRValue::Variable(t_info),
+                    if let Some(t_stack) = t_stack {
+                        IRValue::Variable(t_stack)
+                    } else {
+                        IRValue::Undefined
+                    },
+                    IRValue::Bool(true),
+                ]),
             }));
             true
         }
-        CSTExpression::Call(c) => {
+        CSTExpressionKind::Call(c) => {
             block_call_push(c, block_idx, target, proc, shared_proc, cfg);
             true
         }
-        CSTExpression::Term(t) => {
+        CSTExpressionKind::Term(t) => {
             block_term_push(t, block_idx, target, proc, shared_proc, cfg);
             true
         }
-        CSTExpression::Variable(c) => {
+        CSTExpressionKind::Variable(c) => {
             block_var_push(c, block_idx, target, proc, shared_proc);
             false
         }
-        CSTExpression::Accessible(a) => {
+        CSTExpressionKind::Accessible(a) => {
             block_access_push(a, block_idx, target, proc, shared_proc, cfg)
         }
-        CSTExpression::String(_) => {
+        CSTExpressionKind::String(_) => {
             panic!("strings should have been converted to literals during CST passes");
         }
-        CSTExpression::Literal(s) => {
+        CSTExpressionKind::Literal(s) => {
             // target := s;
             block_get(proc, *block_idx).push(IRStmt::Assign(IRAssign {
                 target,
@@ -92,7 +143,7 @@ pub fn block_expr_push(
             }));
             true
         }
-        CSTExpression::Bool(b) => {
+        CSTExpressionKind::Bool(b) => {
             // target := b;
             block_get(proc, *block_idx).push(IRStmt::Assign(IRAssign {
                 target,
@@ -102,7 +153,7 @@ pub fn block_expr_push(
             }));
             false
         }
-        CSTExpression::Double(f) => {
+        CSTExpressionKind::Double(f) => {
             // target := f;
             block_get(proc, *block_idx).push(IRStmt::Assign(IRAssign {
                 target,
@@ -112,7 +163,7 @@ pub fn block_expr_push(
             }));
             false
         }
-        CSTExpression::Number(i) => {
+        CSTExpressionKind::Number(i) => {
             // target := i;
             block_get(proc, *block_idx).push(IRStmt::Assign(IRAssign {
                 target,
@@ -122,15 +173,15 @@ pub fn block_expr_push(
             }));
             true
         }
-        CSTExpression::Collection(c) => {
+        CSTExpressionKind::Collection(c) => {
             block_collection_push(c, block_idx, target, proc, shared_proc, cfg);
             true
         }
-        CSTExpression::Quantifier(q) => {
+        CSTExpressionKind::Quantifier(q) => {
             block_quant_push(q, block_idx, target, proc, shared_proc, cfg);
             true
         }
-        CSTExpression::Matrix(m) => {
+        CSTExpressionKind::Matrix(m) => {
             let ir_mat: Vec<Vec<IRValue>> = m
                 .iter()
                 .map(|i| {
@@ -159,7 +210,7 @@ pub fn block_expr_push(
             }));
             true
         }
-        CSTExpression::Vector(v) => {
+        CSTExpressionKind::Vector(v) => {
             let ir_vec: Vec<IRValue> = v
                 .iter()
                 .map(|i| {
@@ -184,14 +235,57 @@ pub fn block_expr_push(
             }));
             true
         }
-        CSTExpression::Om | CSTExpression::Ignore => {
+        CSTExpressionKind::Om | CSTExpressionKind::Ignore => {
             block_get(proc, *block_idx).push(IRStmt::Assign(IRAssign {
                 target,
                 types: IRType::UNDEFINED,
                 source: IRValue::Undefined,
                 op: IROp::Assign,
             }));
-            false
+            true
         }
+        CSTExpressionKind::Serialize(e) => {
+            /* t_tmp := // e.expr;
+             * target := serialize(t_tmp);
+             * // if is_owned {
+             *  _ := invalidate(t_tmp);
+             * // }
+             */
+            let t_tmp = tmp_var_new(proc);
+
+            let is_owned = block_expr_push(
+                e,
+                block_idx,
+                IRTarget::Variable(t_tmp),
+                proc,
+                shared_proc,
+                cfg,
+            );
+            block_get(proc, *block_idx).push(IRStmt::Assign(IRAssign {
+                target,
+                types: IRType::STRING,
+                source: IRValue::BuiltinProc(BuiltinProc::Serialize),
+                op: IROp::NativeCall(vec![IRValue::Variable(t_tmp)]),
+            }));
+
+            if is_owned {
+                block_get(proc, *block_idx).push(IRStmt::Assign(IRAssign {
+                    target: IRTarget::Ignore,
+                    types: IRType::UNDEFINED,
+                    source: IRValue::BuiltinProc(BuiltinProc::Invalidate),
+                    op: IROp::NativeCall(vec![IRValue::Variable(t_tmp)]),
+                }));
+            }
+
+            true
+        }
+    };
+
+    if !shared_proc.disable_annotations {
+        block_get(proc, *block_idx).push(IRStmt::Annotate(lhs_old, rhs_old));
     }
+    shared_proc.code_lhs = lhs_old;
+    shared_proc.code_rhs = rhs_old;
+
+    out
 }

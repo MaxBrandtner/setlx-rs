@@ -1,0 +1,19 @@
+test_term := procedure(name) { 
+	print("-----");
+	a := parse(name);
+	print(a);
+	b := fct(a);
+	print(b);
+	print(b == "test");
+	print(b == "@@@test");
+	print(b == "@@@sum");
+	c := args(a);
+	print(c);
+	d := c[1];
+	print(d);
+	print(d == @@@variable('a'));
+};
+
+test_term("@test(a)");
+test_term("@@@test(a)");
+test_term("@@@sum(a,1)");

@@ -59,8 +59,8 @@ impl<'a> CSTGraph<'a> {
     // ---- Traversal helpers ----
 
     fn visit_stmt(&mut self, sid: usize, stmt: &'a CSTStatement) {
-        use CSTStatement::*;
-        match stmt {
+        use CSTStatementKind::*;
+        match &stmt.kind {
             Class(c) => {
                 let name = self.add_node(NodeKind::Label(format!("class:{}", c.name)));
                 self.add_edge(sid, name, "name".to_string());
@@ -232,8 +232,8 @@ impl<'a> CSTGraph<'a> {
     }
 
     fn visit_expr(&mut self, eid: usize, expr: &'a CSTExpression) {
-        use CSTExpression::*;
-        match expr {
+        use CSTExpressionKind::*;
+        match &expr.kind {
             Lambda(l) => {
                 let p = self.add_node(NodeKind::Label("params".to_string()));
                 self.add_edge(eid, p, "params".to_string());
@@ -369,12 +369,15 @@ impl<'a> CSTGraph<'a> {
                 self.visit_expr(cond, &q.condition);
             }
             Om | Ignore => {
-                let nm = self.add_node(NodeKind::Label(match expr {
+                let nm = self.add_node(NodeKind::Label(match &expr.kind {
                     Om => "om".to_string(),
                     Ignore => "ignore".to_string(),
                     _ => unreachable!(),
                 }));
                 self.add_edge(eid, nm, "marker".to_string());
+            }
+            Serialize(e) => {
+                self.visit_expr(eid, e);
             }
         }
     }
@@ -498,8 +501,8 @@ impl<'a> Labeller<'a, usize, (usize, usize)> for CSTGraph<'a> {
 // ---- Helpers to print variant names cleanly ----
 
 fn stmt_name(s: &CSTStatement) -> &'static str {
-    use CSTStatement::*;
-    match s {
+    use CSTStatementKind::*;
+    match &s.kind {
         Class(_) => "Class",
         If(_) => "If",
         Switch(_) => "Switch",
@@ -522,8 +525,8 @@ fn stmt_name(s: &CSTStatement) -> &'static str {
 }
 
 fn expr_name(e: &CSTExpression) -> &'static str {
-    use CSTExpression::*;
-    match e {
+    use CSTExpressionKind::*;
+    match &e.kind {
         Lambda(_) => "Lambda",
         Op(_) => "Op",
         UnaryOp(_) => "UnaryOp",
@@ -543,5 +546,6 @@ fn expr_name(e: &CSTExpression) -> &'static str {
         Quantifier(_) => "Quantifier",
         Om => "Om",
         Ignore => "Ignore",
+        Serialize(_) => "Serialize",
     }
 }

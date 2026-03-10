@@ -20,12 +20,12 @@ pub fn block_assign_push(
 
     let mut current_assign: &CSTStatement = stmt;
     loop {
-        match current_assign {
-            CSTStatement::Assign(d) => {
+        match &current_assign.kind {
+            CSTStatementKind::Assign(d) => {
                 targets_cst.push(&d.assign);
                 current_assign = &d.expr;
             }
-            CSTStatement::Expression(e) => {
+            CSTStatementKind::Expression(e) => {
                 source_cst = e;
                 break;
             }
@@ -46,8 +46,19 @@ pub fn block_assign_push(
         cfg,
     );
 
+    let mut is_last = true;
     for i in targets_cst.iter().rev() {
-        assign_parse(block_idx, tmp, is_owned, None, false, i, proc, shared_proc, cfg);
+        assign_parse(
+            block_idx,
+            tmp,
+            is_owned && is_last,
+            None,
+            i,
+            proc,
+            shared_proc,
+            cfg,
+        );
+        is_last = false;
     }
 }
 
@@ -73,7 +84,7 @@ pub fn block_assign_mod_push(
     let assign_owned = block_expr_push(
         &a.assign,
         block_idx,
-        IRTarget::Variable(t_expr),
+        IRTarget::Variable(t_assign),
         proc,
         shared_proc,
         cfg,
@@ -124,7 +135,6 @@ pub fn block_assign_mod_push(
         t_out,
         true,
         None,
-        false,
         &a.assign,
         proc,
         shared_proc,

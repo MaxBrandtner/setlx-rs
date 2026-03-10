@@ -35,6 +35,7 @@ pub fn block_while_push(
     proc.blocks.add_edge(*block_idx, cond_init_idx, ());
 
     let t_cond = tmp_var_new(proc);
+    // NOTE: cond must be a boolean value which doesn't allocate memory
     block_expr_push(
         &w.condition,
         &mut cond_idx,
@@ -102,6 +103,7 @@ pub fn block_do_while_push(
     proc.blocks.add_edge(*block_idx, loop_idx, ());
 
     let t_cond = tmp_var_new(proc);
+    // NOTE: cond must be a boolean value which doesn't allocate memory
     block_expr_push(
         &w.condition,
         &mut cond_idx,

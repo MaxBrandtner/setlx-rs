@@ -1,0 +1,2 @@
+print(evalTerm(1));
+print(evalTerm("hello world"));

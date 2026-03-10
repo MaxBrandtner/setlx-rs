@@ -48,6 +48,7 @@ pub fn block_quant_push(
         expr_idx: NodeIndex,
         backtrack_idx: NodeIndex,
         follow_idx: NodeIndex,
+        _ret_idx: Option<NodeIndex>,
         args: &ExprModArgs,
         proc: &mut IRProcedure,
         shared_proc: &mut IRSharedProc,
@@ -59,7 +60,7 @@ pub fn block_quant_push(
         block_expr_push(
             args.condition,
             &mut main_idx,
-            *args.target,
+            IRTarget::Variable(tmp),
             proc,
             shared_proc,
             cfg,
@@ -133,6 +134,7 @@ pub fn block_quant_push(
         block_idx,
         &q.iterators,
         &None,
+        None,
         expr_mod,
         &ExprModArgs {
             target: &target,

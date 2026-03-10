@@ -1,0 +1,16 @@
+a:={};
+print(a[1]);
+a[1]:=2;
+print(a);
+a:=[];
+print(a[5]);
+a[5]:=1;
+print(a);
+a:="hello";
+print(a[4]);
+a[4] := "l n";
+print(a);
+a:={};
+print(a[1,2]);
+a[1,2]:=3;
+print(a);

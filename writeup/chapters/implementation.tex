@@ -1,0 +1,412 @@
+\chapter{Implementation}
+
+\section{Parser and Passes over the \acf{CST}}
+
+The SetlX reference implementation uses the ANTLR4 parser generator to generate an \ac{AST} based on the input string. As ANTLR does not properly support Rust as a code generation target, this project uses LALRPOP instead. While ANTLR supports \acf{ALL} grammars, LALRPOP supports LR(1)\footnote{\enquote{Despite its name, LALRPOP in fact uses LR(1) by default (though you can opt for LALR(1)), [\dots]}\cite{lalrpop-crates-io}} grammars. While the two grammars describe the same language, the differing parsing strategies imposed several structural changes. This section discusses the most significant of these, with a focus on reduce-reduce conflicts arising from lambda parameters and assignment statements.
+
+\subsection{Reduce-Reduce Conflicts}
+
+A reduce-reduce conflict arises when two or more grammar rules are eligible for reduction given the same parser state and lookahead token. This typically occurs when two constructs share a common prefix that is only disambiguated by context beyond the one-token lookahead window. In the cases described below, the conflict is resolved by introducing shared intermediate rules that force the parser to commit to a single unambiguous reduction. Any shared rule must be a superset of the conflicting rules that it replaces. For both reduce-reduce conflicts described below, the shared rule produces edge cases, where the grammar accepts inputs that don't describe a valid SetlX program. These unchecked constraints must be validated elsewhere.
+
+\subsubsection{Lambda Parameters}
+
+In the ANTLR4 grammar, lambda expressions are introduced via the \texttt{lambdaProcedure} rule, which allows the parameter list to be either a single identifier or a bracketed list of identifiers:
+
+\begin{table}[h]
+    \centering
+    \caption{Lambda parameter rules: ANTLR4 EBNF vs.\ LALRPOP EBNF}
+    \renewcommand{\arraystretch}{1}
+    \begin{tabular}{ |p{6cm}|p{8cm}| }
+        \hline
+\begin{lstlisting}
+LambdaParams
+  : variable
+  | '[' (variable
+        (',' variable)*)?
+    ']'
+  ;
+
+Lambda
+  : LambdaParams
+    ('|->' | '|=>') Expr
+  ;
+\end{lstlisting}
+&
+\begin{lstlisting}
+LambdaParams
+  : Ident
+  | BrackCollection
+  ;
+
+LambdaIsClosure
+    : '|=>'
+    | '|->'
+    ;
+
+Lambda
+  : LambdaParams
+    LambdaIsClosure Expr
+  ;
+
+BrackCollection
+    : '[' Expr ',' ExtendedCollection ']'
+    | '[' Expr '..' Expr? ']'
+    | '[' '..' Expr ']'
+    | '[' Expr ':' IteratorChain PipeExpr? ']'
+    | '[' Expr PipeExpr ']'
+    | '[' Expr? ']'
+    ;
+\end{lstlisting}
+\\
+        \hline
+        \multicolumn{2}{|c|}{\textbf{Minimal example isolating the conflict}} \\
+\begin{lstlisting}
+stmt : lambda | expr;
+expr
+    : IDENT
+    | '[' expr (',' expr)* ']'
+    ;
+lambdaParams
+    : IDENT
+    | '[' IDENT (',' IDENT)* ']'
+    ;
+lambda: lambdaParams '|->' expr ;
+\end{lstlisting}
+&
+\begin{lstlisting}
+stmt: lambda | expr;
+brack
+    : '[' expr (',' expr)* ']'
+    ;
+expr: IDENT | brack ;
+lambdaParams: IDENT | brack ;
+lambda: lambdaParams '|->' expr ;
+\end{lstlisting}
+\\
+        \hline
+    \end{tabular}
+\end{table}
+\FloatBarrier
+
+The conflict arises because a bracketed expression such as \texttt{[x, y]} is simultaneously a valid \texttt{BrackCollection} and a valid \texttt{LambdaParams}. The disambiguating token --- \texttt{|->} or \texttt{|=>} --- only appears after the closing bracket, which may be preceded by an arbitrarily long list of elements. In this project, the conflict is resolved by reusing \texttt{BrackCollection} as the bracketed lambda parameter rule, accepting that it admits more than valid syntax. The program must subsequently verify manually that the \texttt{BrackCollection} only contains a list of variable expressions.
+
+\subsubsection{Assignment Statements}
+
+A more structurally significant conflict arises from assignments. The reference grammar expresses the left-hand side via the \texttt{assignable} rule, which permits not only bare identifiers and member accesses but also destructuring list patterns such as \texttt{[a, b, c]:=[1,2,3]}:
+
+\begin{table}[h]
+    \centering
+    \caption{Assignment rules: ANTLR4 EBNF vs.\ LALRPOP EBNF}
+    \renewcommand{\arraystretch}{1}
+    \begin{tabular}{ |p{7cm}|p{7cm}| }
+        \hline
+\begin{lstlisting}
+assignable
+  : assignableVariable
+    ('.' variable
+    | '[' exprList ']')*
+  | '[' assignmentList ']'
+  | '_'
+  ;
+assignmentDirectContent
+  : assignable ':='
+    ( assignmentDirectContent
+    | exprContent)
+  ;
+\end{lstlisting}
+&
+\begin{lstlisting}
+AssignDecl
+  : Accessible ':=' AssignSource
+  ;
+AssignSource
+  : AssignDecl
+  | Expr
+  ;
+\end{lstlisting}
+\\
+        \hline
+        \multicolumn{2}{|c|}{\textbf{Minimal example isolating the conflict}} \\
+\begin{lstlisting}
+stmt: assignDecl | expr ;
+assignDecl: assignable ':=' expr ;
+assignable
+    : IDENT
+    | '[' IDENT (',' IDENT)* ']'
+    ;
+expr
+    : IDENT
+    | NUM
+    | '[' expr (',' expr)* ']'
+    ;
+\end{lstlisting}
+        &
+\begin{lstlisting}
+stmt       : assignDecl | expr ;
+assignDecl : assignable ':=' expr ;
+assignable
+    :IDENT
+    | '[' expr (',' expr)* ']'
+    ;
+expr
+    : IDENT
+    | NUM
+    | '[' expr (',' expr)* ']'
+    ;
+\end{lstlisting}
+\\
+        \hline
+    \end{tabular}
+\end{table}
+\FloatBarrier
+
+The conflict arises because the \texttt{assignable} rule contains a dedicated list pattern \texttt{[a, b, c, \ldots]} whose closing bracket may be preceded by an arbitrarily long sequence of tokens. It is only possible to determine whether the bracketed construct is an assignment target or a plain expression when the \texttt{:=} token is eventually read.
+
+When an LR(1) parser reads \texttt{[} followed by \texttt{IDENT} it cannot determine whether to pursue the \texttt{assignable} path or the \texttt{expr} path: both are consistent with the tokens seen so far. The disambiguating \texttt{:=} only appears after the closing \texttt{]}, which may be preceded by arbitrarily many comma-separated identifiers, placing it beyond any fixed lookahead bound.
+
+The conflict is resolved by parsing the assignment target as \texttt{Accessible} --- the most specific expression rule capable of describing all valid assignment targets --- thereby eliminating the dedicated list pattern and with it the unbounded lookahead requirement. The auxiliary rule \texttt{AssignSource} anchors the right-hand side to either another \texttt{AssignDecl}, supporting chaining such as \texttt{a := b := 4}, or a plain \texttt{Expr}. Invalid left-hand side forms such as \texttt{1 := 4} or \texttt{a() := 3} must be validated manually.
+\footnote{In this implementation, parentheses that define precedence influence the structure of the \ac{CST} at parse-time, but are not stored as explicit \ac{CST} nodes. Accordingly, the assignment \texttt{(a) := 1;} is accepted by the interpreter and handled just like the assignment \texttt{a := 1;}.}
+
+\subsection{Further Constraints Imposed by LALRPOP}
+
+Beyond the specific conflicts described above, some quirks of LALRPOP influenced the design of the grammar more broadly.
+
+\paragraph{Absence of generic rules.}
+ANTLR4 allows parameterised rules and rule reuse through inheritance and lexer modes. LALRPOP has no equivalent mechanism. Rules that share structure but differ in their delimiters --- most notably \texttt{BrackCollection} (\texttt{[}\ldots\texttt{]}) and \texttt{CurlyCollection} (\texttt{\{}\ldots\texttt{\}}) --- must be written out in full as separate, duplicated rules.
+
+\paragraph{Optional rules.}
+In LALRPOP, optional rules are expressed using the \texttt{?} postfix operator on a rule reference, which requires the rule to return a concrete type \texttt{T}, producing \texttt{Option<T>} at the call site. This means that any rule used in an optional context must have a fully resolved, non-generic return type. Where the ANTLR4 grammar can freely make any rule optional inline, LALRPOP often requires the introduction of an auxiliary rule solely to provide a concrete return type that can be wrapped in \texttt{Option<T>}. Examples of this pattern in the grammar include \texttt{ClassStaticDecl}, \texttt{CheckAfterBacktrack}, and \texttt{MatchRegexBranchAs}, each of which exists primarily to satisfy this type requirement rather than to express meaningful grammatical structure.
+
+\subsection{CST Passes}
+
+As discussed above, this \texttt{LR(1)} grammar accepts invalid inputs. Furthermore, compound strings such as \texttt{"hello \$1+1\$"} have not been parsed yet\footnote{
+In SetlX terms take precedence over strings for the plus operation. However, inline expressions need to be serialized and concatenated with the string. This problem is resolved by introducing the \ac{CST} node \texttt{CSTExpressionKind::Serialize} that is applied to the expressions in compound strings.
+} -- which also extends to C-style escape sequences\footnote{Unlike other programming languages SetlX allows unrecognized escape sequences, by leaving the sequence as is.}. This project handles these cases by walking the \ac{CST}, transforming it or its context when necessary. Once the structure has been transformed, this document refers to the result as an \acf{AST}.
+
+\FloatBarrier
+
+\begin{table}[h]
+    \centering
+    \caption{CST Passes}
+    \renewcommand{\arraystretch}{1.3}
+    \begin{tabular}{|p{3cm}|p{10cm}|}
+        \hline
+        \textbf{Pass} & \textbf{Description} \\
+        \hline
+        pass string & Parse compound strings containing inline expressions into concatenation expressions, and process escape sequences. \\
+        \hline
+        pass check & Verify the validity of the \ac{CST}. Further details are discussed below. \\
+        \hline
+        pass noop & Detect and remove unreachable statements, emitting a warning for each one. \\
+        \hline
+    \end{tabular}
+\end{table}
+\FloatBarrier
+
+\texttt{Pass~Check} ensures correct use of \texttt{break} and \texttt{continue} within loop bodies, that match case expressions consist only of matchable constructs, the structural correctness of assignment targets as well as accessible body elements, and that lambda parameter lists contain only variable expressions.
+\footnote{The definition of the CST can be found in \texttt{src/ast.rs}. The passes are implemented in \texttt{src/cst/passes/}.}
+
+Apart from generating errors, these passes can also generate non-fatal warnings. Error reporting diverges from the reference implementation. Instead of printing a minimal backtrace, the crate \texttt{ariadne}\cite{ariadne-source} is used to render error diagnostics with source annotations. Accordingly, SetlX programs that catch dynamic parse errors will behave differently in this interpreter.
+
+\section{Internal Interpretation Concepts}
+
+The interpreter described in this project executes SetlX by converting the \ac{AST} to an \ac{IR} that is run as a bytecode \ac{VM}. This approach was chosen out of personal interest in interpreter optimization and because it leaves the door open to future optimization passes and \ac{JIT} compilation that a tree-walking interpreter would not support. The priority was to establish a sound \ac{IR} framework that is semantically correct and can be improved incrementally, rather than to match the reference implementation's throughput from the outset.
+
+The \ac{IR} lowering stage supports all native SetlX features except \texttt{scan} default blocks.
+
+\subsection{Control Flow}
+
+The \ac{IR} is represented as a set of procedures, basic blocks, and three-address code statements. The interpreter terminates when the main procedure returns. Every procedure has exactly one start block and one return block --- having a single return block ensures that all active contexts, such as try contexts, are properly invalidated before the procedure exits.
+
+\FloatBarrier
+\begin{table}[H]
+\begin{tabular}{|l|p{10cm}|}
+	\hline
+	\textbf{Statement} & \textbf{Description} \\
+	\hline
+	Branch      & Evaluate a boolean condition. If the condition is true continue execution at the success block. Else continue execution at the failure block. \\
+	\hline
+	Goto        & Continue execution at the block this statement points to. \\
+	\hline
+	Return      & Exit the current procedure. Assign the value of the return statement to the target of the corresponding call statement. \\
+	\hline
+	Try         & Begin a new try context. Continue execution at the attempt block. If an error is thrown within the try context, the exception is caught and execution continues at the catch block. \\
+	\hline
+	TryEnd      & Terminate the most recent try context and jump to a basic block outside. \\
+	\hline
+	Unreachable & The statement cannot be reached. This statement is an indicator that the prior statement throws an exception or terminates the process. \\
+	\hline
+\end{tabular}
+\caption{Control Flow Terminal Statements}
+\end{table}
+\FloatBarrier
+
+Procedures, blocks, and statements exist at different layers of abstraction: a statement may reference a block or a procedure, but cannot define either. Nested procedures exist on the same layer as all other procedures. Basic blocks within a procedure are stored in a directed graph, where each basic block is a node. Each block $A$ that may transfer execution to a block $B$ is represented as an edge $A \to B$. Procedures are likewise stored in a directed graph, with an edge from caller to callee for each procedure reference.
+
+Procedures are reference counted. Unlike other heap values, copying or invalidating a procedure reference does not affect the underlying procedure body --- both operations merely adjust the reference count, and the body is shared among all references until the count reaches zero.\footnote{Procedure calls are resolved dynamically and do not create static edges in the procedure graph, so recursive calls do not produce reference cycles.} As SetlX does not support arbitrary references\footnote{In SetlX class objects are not passed by reference. Instead, an independent copy of the object is created, should the need arise.}, no cyclic dependencies between procedures can occur.
+
+An example illustrating the basic structure of a procedure can be found in appendix~\ref{sec:proc-ir}. IR dumps can be generated by running the interpreter with the flag \texttt{--dump-ir-lower}.
+
+Higher-order control flow statements such as loops or conditional statements must be transformed to this form as well. A simple while loop consists of two sections: the condition block that is evaluated and the body block that executes if the condition succeeds. The body block terminates with a \texttt{goto} back to the condition block. If the condition fails, execution continues in the follow block. A \texttt{break} statement is transformed to a \texttt{goto} to the follow block, and a \texttt{continue} statement is transformed to a \texttt{goto} to the condition block.
+
+The following example shows how a while loop is transformed by the interpreter:
+
+\begin{table}[H]
+	\centering
+    \caption{Lowering While Statement IR Example}
+	\renewcommand{\arraystretch}{1}
+	\begin{tabular}{ |p{7cm}|p{7cm}| }
+		\hline
+\begin{lstlisting}
+while (true) {
+    break;
+}
+
+\end{lstlisting}
+&
+\begin{lstlisting}
+<bb2>: // condition block
+	t1 := true;
+	if t1 
+		goto <bb4>
+	else
+		goto <bb3>
+
+<bb4>: // while block
+	goto <bb3> // break
+
+<bb3>: // follow block
+	goto <bb5>
+\end{lstlisting}
+\\
+		\hline
+	\end{tabular}
+\end{table}
+
+\subsection{Heap Memory Management}
+
+Values that require dynamically sized storage -- strings, lists, sets, objects, arbitrary-precision integers, and procedures with captured environments -- are allocated on the heap. Virtual registers contain references to these heap objects. As SetlX does not define language features that would allow cyclic references, memory is managed manually at the \ac{IR} layer\footnote{Rust's native reference counting interface is not used here. Since virtual registers may hold references beyond their last semantic use, \texttt{Rc} would delay deallocation in ways that are difficult to reason about at the IR level. Explicit ownership instructions give the code generator precise control over when heap objects are freed, independent of register liveness as seen by the host language. Furthermore, the interpreter would still have to maintain \ac{COW} semantics during code-gen.}. The interpreter tracks ownership when transforming the \ac{CST} to \ac{IR} to avoid memory leaks or double frees. No runtime safety checks guard these operations: the correctness of allocation and deallocation depends entirely on the \ac{IR} lowering stage emitting valid ownership instructions.
+
+\paragraph{Ownership invariant.}
+At every point during execution, each live heap object is owned by exactly one of the following: a virtual register, a stack variable's value slot, or a field within another heap object (e.g., an element of a list or a member of an object). All other references to the object are borrowed -- immutably borrowed references may read the value but must not invalidate it. Views such as slices and iterators are immutable borrows of this kind. Slices and iterators are explained in section \ref{sec:value-representation}. This invariant is maintained by the \ac{IR} code generator and is not enforced at runtime.
+
+\paragraph{Copying and invalidation.}
+A borrowed reference can be promoted to an owned reference by calling \texttt{copy}, which allocates a fresh heap object with the same contents. If the copied object is a container -- a list, set, or object -- the copy is deep: every heap-allocated element is itself copied recursively, and the new container takes ownership of the copies. Invalidation deallocates the heap object and recursively invalidates all owned children. After a virtual register's owned value has been invalidated or its ownership transferred, the register must not be read until it is reassigned. This constraint is a code-generation guarantee; violating it produces use-after-free or double-free bugs.
+
+\paragraph{Ownership transfer.}
+When a value is inserted into a container -- for example, via a builtin procedure such as \texttt{list\_push} or \texttt{set\_insert} -- the container takes ownership. The caller must not use or invalidate the transferred value afterward. The same principle applies when a value is written into a stack variable's slot via pointer dereference assignment (\texttt{*t := v}): the stack slot takes ownership, and the source register must not be reused.
+
+\paragraph{Mutable borrowing.}
+Reassigning a variable that already owns a heap value requires invalidating the old value before writing the new one. This is modeled as a mutable borrow: the old value is read through the pointer, invalidated, and then the new value is written. This sequence must be atomic in the sense that no operation between the invalidation and the write can raise an exception; otherwise, subsequent code or cleanup logic could observe the slot in an undefined state. Mutable borrowing is only safe when no other active borrows of the old value exist. The \ac{IR} code generator is responsible for ensuring this -- no runtime check verifies it. An example illustrating this pattern is provided in Appendix~\ref{sec:heap-borrow-mut}.
+
+\paragraph{Immediate heap.}
+Each procedure call and each try context maintains an immediate heap: a set of references to heap objects that are owned by virtual registers but have not yet been transferred to a persistent owner (a stack variable or container). When a heap object is first allocated into a virtual register, it is added to the current immediate heap. When ownership is transferred -- to a stack slot, a container, or a callee -- the object is removed from the immediate heap. When a try context or procedure exits, its immediate heap is dropped, which invalidates all remaining entries. This serves as a safety net: if an exception causes an early exit, any temporary allocations that were never transferred to a persistent owner are cleaned up automatically, preventing leaks.\footnote{Static compilers like LLVM handle this by invoking landing pads before rethrowing exceptions to invalidate non-persistent memory. Tracking immediate heap memory reduces the bookkeeping required when lowering the \ac{IR}.}
+
+To illustrate the aforementioned concepts, consider the following example:
+
+\begin{figure}[H]
+\begin{lstlisting}
+<bb1>:
+    t_1 := list_new();        // allocate heap 0 owned by t_1
+    t_2 := t_1;               // t_2 references heap 0 t_2 is borrowed
+    t_2 := copy(t_2);         // allocate heap 1 owned by t_2
+    t_3 := t_1;               // transfer ownership to t_3
+                                // t_1 must not be used or borrowed until reinitialization
+    _ := invalidate(t_3);     // invalidate heap 0
+    t_1 := "hello world";     // allocate heap 0 owned by t_1
+    _ := list_push(t_2, t_1); // transfer ownership to list owned by t_2
+                                // t_1 must not be used or borrowed until reinitialization
+    return om;                /* memory owned by t_2 isn't persistent
+                                 -> invalidates heap 1
+                                  -> invalidates heap 0
+                               */
+\end{lstlisting}
+\caption{Heap Ownership \ac{IR} Example}
+\end{figure}
+\FloatBarrier
+
+\paragraph{Persist and immediate markers.}
+These builtins manually remove or add an object from the immediate heap. They are needed in two situations. First, when a value must survive the teardown of its enclosing try context -- for example, a return value computed inside a \texttt{try} block must be marked persistent before the try context exits, then re-marked as immediate in the caller's context once the callee returns. Second, when a builtin procedure returns a borrowed reference, the caller must mark it as persistent to remove it from the immediate heap, since the value is still owned by its original container and would otherwise be invalidated twice on cleanup.
+
+\paragraph{Procedures as heap objects.}
+Procedures are heap-allocated but reference-counted. Copying or invalidating a procedure reference adjusts the reference count rather than duplicating or deallocating the procedure body. Since SetlX does not support first-class references that could create cycles between procedures, no cyclic dependencies can arise, and reference counting is sufficient.\footnote{Procedure calls are resolved dynamically and do not create static edges in the procedure graph, so recursive calls do not produce reference cycles.}
+
+\subsection{Stack}
+\label{subsec:stack}
+
+The stack is a list of stack entries. A stack entry can be a frame boundary, variable, or alias. The stack is the primary mechanism for managing the lifetimes and accessibility of variables.
+
+Frame boundaries segment the stack into regions called stack frames. Only variables and aliases after the last frame boundary, or entries marked as accessible across frame boundaries, are accessible. \texttt{stack\_frame\_add()} pushes a new boundary, establishing a new frame, while \texttt{stack\_frame\_pop()} tears it down, removing all entries after the boundary and invalidating any heap references they held.
+
+Variables are named slots holding an owned value. \texttt{stack\_add()} pushes a new variable onto the stack and returns a pointer to its value slot. If an accessible variable already exists on the stack, the new entry inherits a copy of its value. This ensures that cross-frame entries such as predefined procedures remain accessible across frame boundaries. Memory referenced by the value slot is owned by the variable. \texttt{stack\_pop} removes the currently accessible variable of that name from the stack. Should the slot contain a heap reference, this heap reference is invalidated. \texttt{stack\_get\_or\_new} retrieves a pointer to a named variable if one is accessible in the current frame, and otherwise falls back to the same logic as \texttt{stack\_add()}. \texttt{stack\_in\_scope} indicates whether a named variable is accessible in the current frame.
+
+Aliases are named pointers to an existing value slot, owned by another variable or heap object. \texttt{stack\_alias()} registers an alias with an optional \texttt{crosses\_frames} flag. When set, the alias remains accessible across frame boundaries. Invalidating a stack alias does not invalidate the memory referenced by it.
+
+Stack images are snapshots of reachable stack entries. \texttt{stack\_frame\_copy()} produces a non-destructive copy of the current frame's entries, whereas \texttt{stack\_frame\_save()} also tears down the current stack frame, transferring ownership of the entries onto the image. A stack image can be embedded into a procedure at construction time and later retrieved with \texttt{procedure\_stack\_get()}. \texttt{procedure\_stack\_get()} creates a copy of the stack frame if one is embedded in the procedure. Closures in SetlX carry snapshots of the stack at the time of definition instead of capturing the environment at call-time. \texttt{stack\_frame\_restore()} pushes copies of all entries from a stack image onto the current stack frame. After \texttt{stack\_frame\_restore()}, any previously obtained stack pointers are considered outdated. The prior pointers remain valid and still point to their original slots, but those slots may now be inaccessible. Any code holding such pointers should instead look up or re-derive references to the corresponding restored entries, which represent the authoritative current state of those variables.
+
+Predefined procedures are defined ahead of the first stack frame and marked as cross-frame. This makes them accessible from any stack frame, unless a stack entry exists in a subsequent frame which overwrites them.
+
+A practical example of the behavior of closures is provided in appendix \ref{sec:stack-closure}
+
+\subsection{Calling Conventions}
+
+A procedure is called with a single parameter, which is either a list of pointers or undefined if no arguments are passed. Within a procedure, this parameter list is accessible through the builtin variable \texttt{BuiltinVar::Params}. The values referenced by the pointers in the parameter list may be mutated by the callee. The caller must invalidate any parameter values it owns after the call completes. Parameters must not be marked as immediate by the caller, as marking them as such may cause the prior value of a mutated parameter to be invalidated twice.
+
+As parameter values may be overwritten by the callee, the caller wraps each procedure call in an IR-level try/catch block. The catch block acts as a landing pad, performing the same invalidation of owned parameters that would otherwise occur on the normal return path.
+
+If the procedure is a SetlX closure (see section~\ref{subsec:stack}), the first parameter holds a copy of the embedded stack image, ownership of which is transferred to the callee.
+
+\subsection{Exception Handling}
+
+Exceptions are implemented using Rust's panic mechanism\footnote{The interpreter assumes that Rust isn't compiled with \texttt{panic=abort}.}. When an exception is raised, a global exception state is set --- consisting of an exception kind and an exception value --- before a panic is triggered. There are three exception kinds: \texttt{Lng} for internal interpreter errors, \texttt{Usr} for language-level errors caused by invalid operations or user-thrown exceptions, and \texttt{Backtrack} for the backtracking control flow mechanism used by the \texttt{check} statement.
+
+A \texttt{try} statement in the IR pairs an attempt block with a catch block. At the interpreter level, the attempt block is executed inside a \texttt{catch\_unwind} boundary. If execution completes normally, control passes through a \texttt{TryEnd} statement to the appropriate successor block --- whether that is the normal follow block, a return block, a break block, or a continue block. If a panic occurs, control transfers to the catch block. Each \texttt{try} context also establishes a fresh immediate heap, so any temporary values allocated during the attempt are scoped to that region. Prior to returning from a procedure, every try context must be terminated.
+
+Catch blocks check the current exception kind against the kind they handle. If the kind matches, the exception value is pushed onto the stack under the catch variable name, the global exception state is reset, and the catch body executes. On exit from the catch body, the exception variable is popped from the stack. If the kind does not match, the exception is rethrown by triggering a new panic with the existing global exception state, allowing it to propagate outward to the next enclosing \texttt{catch\_unwind} boundary.
+
+A normal SetlX \texttt{catch} statement catches only \texttt{Usr} exceptions, while \texttt{check} catches only \texttt{Backtrack} exceptions. Internal interpreter errors can be caught with \texttt{catchLng}. At the top level, any uncaught panic is intercepted and its exception state is inspected to produce a human-readable error message: user errors are serialized like any other SetlX value, language errors print the serialized exception value, and internal errors print the panic payload directly. 
+
+\subsection{Classes}
+
+\subsubsection{Class Definition}
+
+A class definition compiles into two procedures: a static procedure and a constructor procedure. The static procedure runs the class's static block, saves the resulting stack frame as an image, and returns it. The entries in this stack frame become the static members of the class, which are direct assignment targets accessible from outside the class and copied into each new object upon construction.
+
+The constructor procedure pushes the static block's stack frame, runs the class body --- defining methods and fields as named variables --- saves that frame as an image, and constructs a new object from it via \texttt{object\_new}. An object is a flat map of named members to their associated values. Prior to construction, a \texttt{getClass} member is added to the object, containing a copy of the class's \texttt{get\_proc}. When called, \texttt{get\_proc} returns a copy of the class, so for an object \texttt{o} derived from class \texttt{c}, calling \texttt{o.getClass()} returns a copy of \texttt{c}.
+
+\subsubsection{Class Store}
+
+When a class definition is encountered at runtime, \texttt{class\_add} registers the class in the class store, which is a map of class names to class store entries. Each entry holds a \texttt{get\_proc} stub and a reference to the class object, which in turn holds the constructor procedure and the static variables. The class store takes priority over the stack during variable lookup: once a class has been registered under a name, no stack variable may be added under the same name. Attempting to do so causes an exception, ensuring class names remain unambiguous throughout execution.
+
+\subsubsection{Method Calls}
+
+When a method is called on an object, the object's members and \texttt{this} -- which references the object itself -- are made accessible to the method by reference. A new stack frame is established and the object is aliased as \texttt{this}, with each of its members aliased by name, all marked cross-frame. The method and any procedures it calls can therefore access \texttt{this} and all object members as ordinary variables, with no explicit qualification. When the call returns, the frame is torn down, removing all aliases at once.
+
+\subsubsection{Operator Overloading and Serialization}
+
+Operator overloading is convention-based: an object supports an operator by having a procedure member with the corresponding name. When an operator is applied to an object, the runtime looks up the matching member and calls it as a method with the right-hand side as its argument. If no matching member exists, the operation either falls back to a default behavior or throws an exception. Addition is a special case: it has two fallback paths. If the object defines a \texttt{sum} member procedure, that is used as the overload. Otherwise, if the object defines a member \texttt{f\_str} and the right-hand side is a string, the object is serialized via \texttt{f\_str} and concatenated with the right-hand side string.
+
+Serialization follows the same convention.\footnote{Serialization refers to the practice of converting a SetlX value to a string.} If the object has a \texttt{f\_str} member procedure, it is called as a method with no arguments and its result is used as the string representation. Otherwise the object falls back to the default representation \texttt{object<name := value; \ldots>}.
+
+\section{Interpretation}
+
+The \ac{IR} described in the previous section is interpreted directly. Unlike a typical bytecode interpreter, instructions are not type-specialized --- the same instruction may perform different operations depending on the runtime types of its operands. This directly mirrors the dynamic semantics of SetlX at the cost of more complex instruction implementations. Each procedure maintains its own array of virtual registers and an immediate heap, both of which are allocated on the Rust stack for the duration of the call. The following subsections describe how SetlX values are represented at runtime and how the predefined procedures are initialized.
+
+Instructions are dispatched via a Rust \texttt{match} statement over the instruction variant. Arithmetic and comparison operations resolve their operands through nested \texttt{match} statements: the outer arm matches the type of the left-hand operand, and the inner arm matches the type of the right-hand operand. Each combination of operand types either applies the appropriate operation --- for example, integer addition when both operands are integers, or a widening conversion followed by floating-point addition when one operand is a double --- or produces a runtime type error if the combination is not defined for the given operator. This mirrors the dynamic semantics of SetlX directly, at the cost of more branching per instruction than a type-specialized dispatch would require. 
+
+\subsection{Value Representation}
+\label{sec:value-representation}
+
+At runtime, SetlX values are represented as \texttt{InterpVal}, a tagged union that covers both stack-allocated and heap-allocated variants. Stack-allocated variants include booleans, doubles, pointers, and \texttt{Undefined} --- the runtime representation of SetlX's \texttt{om}. Heap-allocated values are represented as \texttt{InterpVal::Ref}, which holds a pointer to an \texttt{InterpObj}. The heap object variants cover the dynamically-sized types of the language: arbitrary-precision integers, strings, lists, sets, objects, classes, procedures, matrices, vectors, and regular expressions. In the \ac{IR} values are represented as an enum \texttt{IRValue}. The interpreter converts an \texttt{IRValue} to an \texttt{InterpVal} at runtime should the need arise. If an operation operates on internal types -- such as strings, numbers, or floats -- the interpreter may convert \texttt{IRValue} to that target type directly instead.
+
+Procedures are heap-allocated and may carry additional data: a procedure lowered from a SetlX closure carries an embedded stack image, and \ac{AST} metadata. The \texttt{InterpVal::Procedure} variant is an implementation detail used internally and should be considered equivalent to \texttt{InterpVal::Ref(InterpObj::Procedure)} for the purposes of this discussion. 
+
+Two additional variants, \texttt{InterpVal::Slice} and \texttt{InterpVal::Iter}, exist as optimizations for iteration. Rather than copying a string or list when iterating over it, the interpreter produces a slice or iterator view over the original allocation. These variants have unique lifetime requirements: they hold raw references into heap memory and must not outlive the object they reference. A \texttt{Char} variant similarly avoids allocating a heap string for each character produced during string iteration, existing solely as an intermediate value within the iteration context. 
+
+\subsection{Predefined and Builtin Procedures}
+
+Predefined procedures are the named procedures accessible to every SetlX program without explicit declaration, such as \texttt{print}, \texttt{abs}, or \texttt{load}. At startup, before the first stack frame is pushed, each predefined procedure is constructed as an IR procedure stub and added to the stack as a cross-frame variable. This ensures they remain accessible from any stack frame throughout execution and are inherited by closures via stack snapshots. Predefined procedures participate in the same calling convention as user-defined procedures and can therefore be passed as values, stored in variables, and captured by closures.
+
+Internally, predefined procedure stubs delegate to \texttt{BuiltinProc} calls for their implementation. \texttt{BuiltinProc} variants are lower-level operations invoked directly by the generated IR --- such as \texttt{stack\_add}, \texttt{object\_new}, or \texttt{invalidate} --- and are not accessible as named variables in SetlX programs.
+
+Table~\ref{tab:predefined} lists all predefined procedures and their support status in this implementation.

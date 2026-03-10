@@ -1,0 +1,14 @@
+print("\$");
+print("\\$");
+print("\\\$");
+print("\\\\$");
+print("\\\\\$");
+print("\\\\\\$");
+print("\\\\\\\$");
+print("\nn");
+print("\\nn");
+print("\\\nn");
+print("\\\\nn");
+print("\\\\\nn");
+print("\\\\\\nn");
+print("\\\\\\\nn");

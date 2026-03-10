@@ -1,0 +1,2 @@
+print(fct(parse('ln(x)')));
+print(args(parse('ln(x)')));

@@ -1,0 +1,3 @@
+a:=1;
+b := procedure() { c := procedure() { throw(1); }; c();};
+try { b(); } catch (e) { print(e); print(a);}

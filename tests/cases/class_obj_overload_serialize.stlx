@@ -1,0 +1,4 @@
+class a() { info := 2; minus :=[]|->print(info); f_str := []|->print(info);}
+b:=a();
+-b;
+""+b;

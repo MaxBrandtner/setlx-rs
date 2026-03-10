@@ -1,0 +1,2 @@
+a := procedure (b) { b := b; print(b); };
+a(1);

@@ -1,0 +1,86 @@
+\documentclass[oneside,abstract]{scrreprt}
+
+\usepackage[
+	a4paper,
+	left=25mm,
+	right=25mm,
+	top=25mm,
+	bottom=25mm,
+]{geometry}
+\usepackage[
+    backend=biber,
+    bibwarn=true,
+    bibencoding=utf8,
+    sortlocale=en_US,
+    style=numeric-comp,
+]{biblatex}
+\addbibresource{bibliography.bib}
+\usepackage[nonumberlist]{glossaries}
+\usepackage{csquotes}
+\usepackage{listings}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{setspace}
+\usepackage{acronym}
+\setstretch{1.5}
+\usepackage{xcolor}
+\usepackage[utf8]{inputenc}
+\usepackage[hidelinks,colorlinks=black,linkcolor=black,citecolor=black,urlcolor=black]{hyperref}
+\usepackage{placeins}
+\usepackage{longtable}
+\usepackage[T1]{fontenc}
+\usepackage{float}
+\usepackage{seqsplit}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{setspace}
+\usepackage{pifont}
+\makeglossaries
+
+\definecolor{ListingBackground}{HTML}{FCF7DE}
+
+\lstset{
+    language=C,
+    breaklines=true,
+    breakautoindent=true,
+    postbreak=\space,
+    tabsize=2,
+    basicstyle=\ttfamily\scriptsize,
+    showspaces=false,
+    showstringspaces=false,
+    extendedchars=true,
+    captionpos=b,
+    backgroundcolor=\color{ListingBackground},
+    xleftmargin=0pt,
+    xrightmargin=0pt,
+    frame=single,
+    frameround=ffff,
+    rulecolor=\color{darkgray},
+    fillcolor=\color{ListingBackground},
+    keywordstyle=\color[rgb]{0.133,0.133,0.6},
+    commentstyle=\color[rgb]{0.133,0.545,0.133},
+    stringstyle=\color[rgb]{0.627,0.126,0.941}
+}
+
+\lstdefinelanguage{EBNF}{
+    morekeywords={},
+    morestring=[b]",
+    morestring=[b]',
+    morecomment=[s]{(*}{*)},
+    literate=
+        {|}{{{\textbar}}}1
+        {:}{{{\textbf{:}}}}1
+        {;}{{{\textbf{;}}}}1
+        {\\}{{\textbackslash}}1,
+}
+
+\let\oldcite\cite
+\renewcommand{\cite}[1]{~\oldcite{#1}}
+\renewcommand{\texttt}[1]{%
+    \begingroup\ttfamily\seqsplit{#1}\endgroup
+}
+
+\newcommand{\cmark}{\textcolor{green!60!black}{\ding{51}}}
+\newcommand{\xmark}{\textcolor{red}{\ding{55}}}

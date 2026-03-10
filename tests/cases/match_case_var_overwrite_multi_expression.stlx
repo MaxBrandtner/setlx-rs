@@ -1,0 +1,5 @@
+match (parse("a&&b")) {
+	case a && b, a || b:
+		print(a);
+		print(b);
+}

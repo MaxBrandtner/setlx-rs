@@ -1,0 +1,4 @@
+match ([1,2]) {
+	case [_|r]| true: print("hi");
+	default: print("no");
+}

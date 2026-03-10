@@ -1,0 +1,9 @@
+term := parse("a||b");
+
+match (term) {
+	case a <==>b, a || b:
+		print(a);
+		print(b);
+	default:
+		print("no");
+}

@@ -1,0 +1,8 @@
+a:=om;
+
+a == om || a[1] < 1;
+print("or");
+a != om && a[1] < 1;
+print("and");
+a != om => a[1] < 1;
+print("imply");

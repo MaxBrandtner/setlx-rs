@@ -1,0 +1,297 @@
+\chapter{Supported Features}
+
+\section{Predefined Procedure Support}
+\label{sec:predefined-procedure-support}
+\begin{longtable}{|p{4cm}|p{9cm}|}
+    \caption{Predefined Procedure Support}
+    \label{tab:predefined} \\
+    \hline
+    \textbf{Procedure} & \textbf{Status} \\
+    \hline
+    \endfirsthead
+
+    \multicolumn{2}{c}{\tablename\ \thetable{} -- continued} \\
+    \hline
+    \textbf{Procedure} & \textbf{Status} \\
+    \hline
+    \endhead
+
+    \hline
+    \multicolumn{2}{r}{continued on next page} \\
+    \endfoot
+
+    \hline
+    \endlastfoot
+        \texttt{abort} & Supported \\
+        \hline
+        \texttt{abs} & Supported \\
+        \hline
+        \texttt{appendFile} & Supported \\
+        \hline
+        \texttt{arb} & Divergent --- always returns the first element; the reference implementation returns the first or last element depending on the input \\
+        \hline
+        \texttt{args} & Supported \\
+        \hline
+        \texttt{ask} & Supported \\
+        \hline
+        \texttt{assert} & Supported \\
+        \hline
+        \texttt{cacheStats} & Unsupported \\
+        \hline
+        \texttt{canonical} & Unsupported \\
+        \hline
+        \texttt{ceil} & Supported \\
+        \hline
+        \texttt{char} & Supported \\
+        \hline
+        \texttt{clearCache} & Supported \\
+        \hline
+        \texttt{collect} & Unsupported \\
+        \hline
+        \texttt{compare} & Supported \\
+        \hline
+        \texttt{cos}, \texttt{cosh} & Supported \\
+        \hline
+        \texttt{deleteFile} & Supported \\
+        \hline
+        \texttt{domain} & Supported \\
+        \hline
+        \texttt{double} & Supported \\
+        \hline
+        \texttt{endsWith}, \texttt{startsWith} & Unsupported \\
+        \hline
+        \texttt{eval} & Supported \\
+        \hline
+        \texttt{evalTerm} & Supported \\
+        \hline
+        \texttt{execute} & Supported \\
+        \hline
+        \texttt{exp} & Supported \\
+        \hline
+        \texttt{fct} & Supported \\
+        \hline
+        \texttt{first}, \texttt{last} & Supported \\
+        \hline
+        \texttt{floor} & Supported \\
+        \hline
+        \texttt{from} & Divergent --- always returns the first element; the reference implementation returns the first or last element depending on the input \\
+        \hline
+        \texttt{fromB}, \texttt{fromE} & Supported \\
+        \hline
+        \texttt{get} & Divergent --- supports readline history navigation via arrow keys; the reference implementation does not \\
+        \hline
+        \texttt{getOsID} & Supported \\
+        \hline
+        \texttt{getScope} & Unsupported \\
+        \hline
+        \texttt{getTerm} & Unsupported \\
+        \hline
+        \texttt{int} & Supported \\
+        \hline
+        \texttt{isBoolean} & Supported \\
+        \hline
+        \texttt{isDouble} & Supported \\
+        \hline
+        \texttt{isError} & Unsupported \\
+        \hline
+        \texttt{isInfinite} & Supported \\
+        \hline
+        \texttt{isInteger} & Supported \\
+        \hline
+        \texttt{isList} & Supported \\
+        \hline
+        \texttt{isMap} & Unsupported \\
+        \hline
+        \texttt{isNumber} & Supported \\
+        \hline
+        \texttt{isObject} & Supported \\
+        \hline
+        \texttt{isPrime}, \texttt{isProbablePrime} & Supported \\
+        \hline
+        \texttt{isRational} & Unsupported \\
+        \hline
+        \texttt{isSet} & Supported \\
+        \hline
+        \texttt{isString} & Supported \\
+        \hline
+        \texttt{isTerm} & Supported \\
+        \hline
+        \texttt{isVariable} & Supported \\
+        \hline
+        \texttt{join} & Supported \\
+        \hline
+        \texttt{la\_cond} & Unsupported \\
+        \hline
+        \texttt{la\_det} & Unsupported \\
+        \hline
+        \texttt{la\_eigenValues}, \texttt{la\_eigenVectors} & Unsupported \\
+        \hline
+        \texttt{la\_matrix} & Unsupported \\
+        \hline
+        \texttt{la\_pseudoInverse} & Unsupported \\
+        \hline
+        \texttt{la\_solve} & Unsupported \\
+        \hline
+        \texttt{la\_svd} & Unsupported \\
+        \hline
+        \texttt{load}, \texttt{loadLibrary} & Supported \\
+        \hline
+        \texttt{log}, \texttt{log10}, \texttt{log1p} & Supported \\
+        \hline
+        \texttt{logo} & Supported \\
+        \hline
+        \texttt{makeTerm} & Supported \\
+        \hline
+        \texttt{matches} & Supported \\
+        \hline
+        \texttt{mathConst} & Supported \\
+        \hline
+        \texttt{max}, \texttt{min} & Supported \\
+        \hline
+        \texttt{multiLineMode} & Out of scope \\
+        \hline
+        \texttt{nextPermutation} & Unsupported \\
+        \hline
+        \texttt{nextProbablePrime} & Unsupported \\
+        \hline
+        \texttt{nPrint}, \texttt{nPrintErr} & Supported \\
+        \hline
+        \texttt{now} & Supported \\
+        \hline
+        \texttt{parse} & Supported \\
+        \hline
+        \texttt{parseStatements} & Supported \\
+        \hline
+        \texttt{permutations} & Unsupported \\
+        \hline
+        \texttt{plot\_addBarChart} & Unsupported \\
+        \hline
+        \texttt{plot\_addBullets} & Unsupported \\
+        \hline
+        \texttt{plot\_addGraph} & Unsupported \\
+        \hline
+        \texttt{plot\_addLabel} & Unsupported \\
+        \hline
+        \texttt{plot\_addListGraph} & Unsupported \\
+        \hline
+        \texttt{plot\_addParamGraph} & Unsupported \\
+        \hline
+        \texttt{plot\_addPieChart} & Unsupported \\
+        \hline
+        \texttt{plot\_createCanvas} & Unsupported \\
+        \hline
+        \texttt{plot\_defineTitle} & Unsupported \\
+        \hline
+        \texttt{plot\_exportCanvas} & Unsupported \\
+        \hline
+        \texttt{plot\_labelAxis} & Unsupported \\
+        \hline
+        \texttt{plot\_legendVisible} & Unsupported \\
+        \hline
+        \texttt{plot\_modScale}, \texttt{plot\_modScaleType} & Unsupported \\
+        \hline
+        \texttt{plot\_modSize} & Unsupported \\
+        \hline
+        \texttt{plot\_removeGraph} & Unsupported \\
+        \hline
+        \texttt{pow} & Supported \\
+        \hline
+        \texttt{print}, \texttt{printErr} & Supported \\
+        \hline
+        \texttt{raise}, \texttt{throw} & Supported \\
+        \hline
+        \texttt{random}, \texttt{rnd} & Supported \\
+        \hline
+        \texttt{range} & Supported \\
+        \hline
+        \texttt{rational} & Unsupported \\
+        \hline
+        \texttt{read} & Supported \\
+        \hline
+        \texttt{readFile} & Supported \\
+        \hline
+        \texttt{replace}, \texttt{replaceFirst} & Supported \\
+        \hline
+        \texttt{resetRandom} & Divergent --- Doesn't do anything. Only true random number generators are supported. \\
+        \hline
+        \texttt{reverse} & Supported \\
+        \hline
+        \texttt{round} & Supported \\
+        \hline
+        \texttt{run} & Supported \\
+        \hline
+        \texttt{signum} & Supported \\
+        \hline
+        \texttt{sin}, \texttt{sinh} & Supported \\
+        \hline
+        \texttt{sleep} & Supported \\
+        \hline
+        \texttt{sort}, \texttt{shuffle} & Unsupported \\
+        \hline
+        \texttt{split} & Supported \\
+        \hline
+        \texttt{sqrt} & Divergent --- not implemented for all types \\
+        \hline
+        \texttt{stat\_beta}, \texttt{stat\_betaCDF} & Unsupported \\
+        \hline
+        \texttt{stat\_beta\_plot}, \texttt{stat\_betaCDF\_plot} & Unsupported \\
+        \hline
+        \texttt{stat\_cauchy}, \texttt{stat\_cauchyCDF} & Unsupported \\
+        \hline
+        \texttt{stat\_cauchy\_plot}, \texttt{stat\_cauchyCDF\_plot} & Unsupported \\
+        \hline
+        \texttt{stat\_chiSquared}, \texttt{stat\_chiSquaredCDF} & Unsupported \\
+        \hline
+        \texttt{stat\_chiSquared\_plot}, \texttt{stat\_chiSquaredCDF\_plot} & Unsupported \\
+        \hline
+        \texttt{stat\_exponential}, \texttt{stat\_exponentialCDF} & Unsupported \\
+        \hline
+        \texttt{stat\_exponential\_plot}, \texttt{stat\_exponentialCDF\_plot} & Unsupported \\
+        \hline
+        \texttt{stat\_fisher}, \texttt{stat\_fisherCDF} & Unsupported \\
+        \hline
+        \texttt{stat\_fisher\_plot}, \texttt{stat\_fisherCDF\_plot} & Unsupported \\
+        \hline
+        \texttt{stat\_gamma}, \texttt{stat\_gammaCDF} & Unsupported \\
+        \hline
+        \texttt{stat\_gamma\_plot}, \texttt{stat\_gammaCDF\_plot} & Unsupported \\
+        \hline
+        \texttt{stat\_levy}, \texttt{stat\_levyCDF} & Unsupported \\
+        \hline
+        \texttt{stat\_levy\_plot}, \texttt{stat\_levyCDF\_plot} & Unsupported \\
+        \hline
+        \texttt{stat\_logNormal}, \texttt{stat\_logNormalCDF} & Unsupported \\
+        \hline
+        \texttt{stat\_logNormal\_plot}, \texttt{stat\_logNormalCDF\_plot} & Unsupported \\
+        \hline
+        \texttt{stat\_normal}, \texttt{stat\_normalCDF} & Unsupported \\
+        \hline
+        \texttt{stat\_normal\_plot}, \texttt{stat\_normalCDF\_plot} & Unsupported \\
+        \hline
+        \texttt{stat\_pareto}, \texttt{stat\_paretoCDF} & Unsupported \\
+        \hline
+        \texttt{stat\_pareto\_plot}, \texttt{stat\_paretoCDF\_plot} & Unsupported \\
+        \hline
+        \texttt{stat\_student}, \texttt{stat\_studentCDF} & Unsupported \\
+        \hline
+        \texttt{stat\_student\_plot}, \texttt{stat\_studentCDF\_plot} & Unsupported \\
+        \hline
+        \texttt{stat\_weibull}, \texttt{stat\_weibullCDF} & Unsupported \\
+        \hline
+        \texttt{stat\_weibull\_plot}, \texttt{stat\_weibullCDF\_plot} & Unsupported \\
+        \hline
+        \texttt{str} & Supported \\
+        \hline
+        \texttt{tan}, \texttt{tanh} & Supported \\
+        \hline
+        \texttt{toLowerCase}, \texttt{toUpperCase} & Unsupported \\
+        \hline
+        \texttt{trace} & Out of scope \\
+        \hline
+        \texttt{trim} & Unsupported \\
+        \hline
+        \texttt{ulp} & Supported \\
+        \hline
+        \texttt{writeFile} & Supported \\
+        \hline
+\end{longtable}

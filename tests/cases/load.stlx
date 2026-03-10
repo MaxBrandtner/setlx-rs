@@ -1,0 +1,1 @@
+load("tests/cases/load_target.stlx"); // must be run from project root

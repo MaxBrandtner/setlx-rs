@@ -1,0 +1,2 @@
+l := @cons(1);
+print(args(l));

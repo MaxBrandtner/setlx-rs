@@ -1,0 +1,7 @@
+a:={1,2,3,4,5};
+eval("print(+/a)");
+eval("print(+/a)");
+eval("print(+/a)");
+eval("print(*/a)");
+eval("print(*/a)");
+eval("print(*/a)");

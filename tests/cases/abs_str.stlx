@@ -1,0 +1,2 @@
+print(abs("h"));
+print(abs("❌"));

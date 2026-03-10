@@ -1,0 +1,4 @@
+scan ("testsome") using position {
+	regex "some": print("nooo");
+	regex "test" as some: print("" + some + position);
+}

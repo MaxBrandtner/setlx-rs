@@ -1,0 +1,316 @@
+\chapter{Background}
+
+The following sections survey the conceptual foundations that underlie both the reference implementation and this project; not all are necessary to follow the conceptual implementation design described in Chapter 3, but they inform the design decisions made throughout.
+
+In interpreters, the front-end produces an \ac{AST} or an \acf{IR}, which is executed directly rather than compiled into machine code. During execution, the interpreter may perform optimizations such as constant folding or expression simplification to improve performance.
+
+\section{\acf{CST} Construction}
+
+\subsection{Tokenizing}
+
+Before a source file can be parsed into a \ac{CST}, it is first tokenized by a lexer\footnote{A lexer may also be called a scanner or tokenizer.}. The lexer converts the raw input into a sequence of tokens, each representing a basic syntactic element such as a keyword, identifier, or operator. Lexers often define tokens using regular expressions. If the lexer encounters input that does not match any token, it reports a lexical error. Most parsers operate on token sequences rather than raw text to simplify parsing, although scannerless parsers exist as well\cite{tomassetti2017}.
+
+\subsection{Parsing}
+
+The parser takes the token list from the lexer and constructs a \ac{CST} based on the language's formal grammar. Formal grammars define the syntactic rules of a language and are usually classified as either regular or context-free\cite{tomassetti2017}. Regular grammars restrict rules to derive a terminal optionally followed by a nonterminal, while context-free grammars allow more general derivations\cite{greenlaw1998, hanus2020}.  
+
+Parsers are broadly categorized as top-down or bottom-up. Top-down parsers, such as recursive descent parsers, recursively expand nonterminals. These parsers often require backtracking or lookahead. Bottom-up parsers, like LR, SLR, and LALR parsers, use a stack and an action table to shift tokens and reduce sequences according to grammar rules\cite{kegler2014}.
+
+\subsubsection{LR Parsing}
+LR parsers build the parse tree from the leaves (input tokens) up to the root. The action and goto tables encode a \ac{DFA} that guides parsing. Actions include shift, reduce, accept, or error. Shifting pushes a token and its state onto the stack; reducing replaces a sequence of states with a nonterminal according to a grammar rule. A semantic stack mirrors this process to construct a \ac{CST}, which may later be transformed into an \ac{AST} for further processing\cite{suresh2019}.
+
+\subsubsection{ALL(*) Parsing}
+
+While LR(1) parsers are efficient for deterministic grammars, they are limited to a fixed one-token lookahead and bottom-up construction. ALL(*) parsing --- which is used by ANTLR4 --- by contrast, uses a top-down strategy with adaptive lookahead. It constructs an \ac{NFA} to explore multiple parsing paths and select grammar rules dynamically, allowing it to handle a wider range of grammars, including left-recursive and ambiguous constructs.
+
+\section{Intermediate Representations}
+
+An optimizing interpreter performs various optimizations on the \ac{AST} it receives to generate performant code. Different optimizations benefit from an intermediate representation which is represented in different formats.
+
+\subsection{Three-Address Code Form}
+
+Three-address code represents a program as a sequence of simple instructions. It is based on the concepts of \emph{addresses} and \emph{instructions}. An address can be a variable name, a constant, or a compiler-generated temporary, which holds intermediate results. Instructions can include binary or unary assignments, conditional or unconditional jumps, and procedure calls\cite{dragon-book}. For instance, the expression $(a + (a \cdot (b - c))) + ((b - c) \cdot d)$ can be represented in three-address code as follows:
+
+\begin{figure}[h]
+\begin{lstlisting}
+t_1 = b - c
+t_2 = a * t_1
+t_3 = a + t_2
+t_4 = t_1 * d
+t_5 = t_3 + t_4
+\end{lstlisting}
+\caption{Three-address code for a nested arithmetic expression}
+\end{figure}
+\FloatBarrier
+
+Three-address code does not encode high-level constructs such as loops or iterators directly. These constructs are instead represented using \texttt{goto} statements. Instructions are often organized into basic blocks, which are sequences of instructions starting with a label and ending with a terminal statement such as a jump, or branch. In an optimizable three-address code \ac{IR}, branch instructions explicitly define both \texttt{if} and \texttt{else} targets. While the serialized representation of instructions may appear linear, basic blocks are internally stored as a graph to capture control flow\cite{dragon-book}.
+
+For example, a \texttt{while} loop can be encoded as a conditional check that jumps to the end of the loop if the condition fails, the loop body instructions, and a \texttt{goto} statement back to the condition check:
+
+\begin{table}[h]
+	\centering
+    \caption{Source code to three-address code}
+	\renewcommand{\arraystretch}{1}
+	\begin{tabular}{ |p{7cm}|p{7cm}| }
+		\hline
+\begin{lstlisting}
+while(a < 4) {
+	a++;
+}
+\end{lstlisting}
+&
+\begin{lstlisting}
+1:
+   t_1 = a < 4
+   if t_1
+     goto 2
+   else
+     goto 3
+2: 
+   a = a + 1
+   goto 1
+3: /* end of loop */
+\end{lstlisting}
+\\
+		\hline
+	\end{tabular}
+\end{table}
+
+Three-address code does not require a specific data structure for storing instructions; basic blocks are commonly stored as arrays or linked lists. It is widely used as an intermediate representation because it simplifies analysis and reduces the number of special cases in compiler and interpreter implementations. While high-level constructs like loops can be exploited for language-specific optimizations, they are generally unnecessary for language-independent optimizations and often add complexity.
+
+\subsection{Control Flow Graphs and Data Flow Graphs}
+
+Many optimizations rely on understanding the logical control flow within code. A \acf{CFG} encodes such information. It works by dividing the \ac{IR} into basic-blocks. Every basic-block is a node in the \ac{CFG}. If a basic-block $a$ can be reached from a basic block $b$ through a jump instruction, an edge is added in the \ac{CFG} between the corresponding two nodes\cite{chong-cfg}.
+
+A \acf{DFG} encodes the flow of data within the code. It stores which instructions access or modify a given variable. In a \ac{DFG} each node represents a data element, such as variables, constants, and operations. Edges within the \ac{DFG} indicate that the data of a given node depends on the data of another node\cite{gibbons-dfg}.
+
+In a \ac{CFG} the mutation of variables across various basic blocks is not tracked directly. Data flow can be tracked in a \ac{CFG}, by converting the \ac{IR} to \ac{SSA} form.
+
+\subsection{\acf{SSA}}
+
+In \ac{SSA}, each assignment creates a new, distinct version of a variable, ensuring that every variable instance is immutable. Different definitions of a variable are combined using a $\phi$-function, which is inserted at the beginning of a basic block that has multiple predecessors defining the same variable\cite{dragon-book}. The following example illustrates the conversion of a simple loop to \ac{SSA}:
+
+\begin{table}[h]
+	\centering
+    \caption{Three-address code to \ac{SSA}}
+	\renewcommand{\arraystretch}{1.2}
+	\begin{tabular}{ |p{7cm}|p{7cm}| }
+		\hline
+        \begin{minipage}[t]{7cm}
+        \begin{lstlisting}
+<1>:
+   t_1 = a < 4
+   if t_1
+    goto <2>
+   else
+    goto <3>
+<2>:
+   a = a + 1
+   goto <1>
+<3>: /* ... */
+        \end{lstlisting}
+        \end{minipage}
+        &
+        \begin{minipage}[t]{7cm}
+        \begin{lstlisting}
+<1>: 
+   a_1 = phi<a, a_2>
+   t_1 = a_1 < 4
+   if t_1
+     goto <2>
+   else
+     goto <3>
+<2>:
+   a_2 = a_1 + 1
+   goto <1>
+<3>:
+   /* use a_1 for a */
+        \end{lstlisting}
+        \end{minipage}
+	\\
+        \hline
+	\end{tabular}
+\end{table}
+
+In this example, a new version of the variable \texttt{a} is introduced in basic block 2. Because block 2 jumps back to block 1, a $\phi$-function is inserted at block 1 to merge the different definitions into \texttt{a\_1}. Blocks 2 and 3, which are only reachable from block 1, continue to use \texttt{a\_1} without introducing additional $\phi$-functions. Although it would be valid to place a $\phi$-function at the start of every basic block, this is unnecessary and inefficient.
+
+Several algorithms exist to convert a \ac{CFG} to \ac{SSA}\cite{sarkar-ssa}. A simple, though non-optimal, approach is to insert a $\phi$-function for every variable at every join point. To minimize the number of $\phi$-functions, dominance relationships between nodes must be computed: a node \texttt{a} dominates another node \texttt{b} if every path from the entry node to \texttt{b} passes through \texttt{a}. The dominance frontier of \texttt{a} is the set of nodes that are not dominated by \texttt{a} but have at least one predecessor dominated by \texttt{a}. When a variable is assigned in a node, a $\phi$-function is inserted at each node in the dominance frontier if the variable may be reached through multiple paths\cite{sarkar-ssa,klara-ssa}.
+
+Pointer assignments require special handling: any variable a pointer may alias must be stored and loaded into a new SSA variable at its next use. Indexed SSA variables are often kept in registers, with store operations signaling when values must be written to memory. Optimizations aim to minimize unnecessary stores by analyzing pointer aliasing, which can also leverage value propagation techniques\cite{dragon-book}.
+
+If an optimization violates SSA properties, the SSA form must be restored before performing subsequent optimizations that rely on it.
+
+When representing an \ac{IR} as a \ac{CFG} in \ac{SSA}, it is possible to detect constraints and infer information that cannot reliably be determined otherwise. Many optimizations can be applied to a \ac{CFG}, but this section highlights only the most common.
+
+\subsection{Value Propagation}
+
+Value propagation works by tracking assignments and their uses. It can take the form of constant propagation, copy propagation, or value range propagation. These optimizations often take advantage of \acf{SSA}. 
+
+\textbf{Constant propagation} in \ac{SSA} is straightforward: each variable use is replaced with the constant assigned to it. While arithmetic optimizations can be handled in a separate pass, constant propagation often precomputes arithmetic expressions when all operands are constants\cite{dragon-book}.
+
+\textbf{Copy propagation} replaces uses of a variable that is simply a copy of another with direct uses of the original. This allows subsequent computations to refer directly to the original variable, which may enable further optimizations such as dead-code elimination if the copied variable is no longer used.
+
+For example, consider the following code:
+
+\begin{table}[h]
+	\centering
+    \caption{Copy Propagation Example}
+	\renewcommand{\arraystretch}{1.2}
+	\begin{tabular}{ |p{7cm}|p{7cm}| }
+		\hline
+        \begin{minipage}[t]{7cm}
+        \begin{lstlisting}
+1: b = a
+2: c = 3 + b
+        \end{lstlisting}
+        \end{minipage}
+        &
+        \begin{minipage}[t]{7cm}
+        \begin{lstlisting}
+1: b = a
+2: c = 3 + a
+        \end{lstlisting}
+        \end{minipage}
+	\\
+        \hline
+	\end{tabular}
+\end{table}
+
+After propagation, \texttt{c} directly uses \texttt{a} instead of \texttt{b}. If \texttt{b} has no other uses, it can be eliminated in a later dead-code elimination pass. This combination of copy propagation and dead-code elimination is sometimes referred to as \emph{single-use forwarding}. Copy propagation also helps remove redundant assignments introduced by other optimization passes.
+
+\textbf{Value range propagation} does not change the code directly but annotates variables with the range of values they may hold. These annotations assist further optimizations. For example, if a comparison always succeeds within a known range, the compiler can simplify it. In \ac{SSA}, the range of a variable may change throughout a procedure, so ranges are tracked at each expression rather than statically for the variable.
+
+\begin{itemize}
+\item Initially, an uninitialized variable may hold any value.  
+\item Assigning a constant collapses the variable’s range to that value.  
+\item Propagation through expressions updates ranges, e.g., $y \in [1,3]$ and $x = y + 2$ implies $x \in [3,5]$.  
+\item Branch conditions constrain ranges, e.g., for $a \in [-1,1]$, inside \texttt{if (a > 0)}, $a \in (0,1]$.  
+\item When multiple branches merge, the range of a $\phi$-function is the union of incoming ranges.  
+\end{itemize}
+
+Range propagation requires fixed-point iteration. In some cases, convergence may be impractical:
+
+\begin{figure}[h]
+\begin{lstlisting}
+1: a_0 = phi<1000000000, a_1>
+2: a_1 = a_0 - 1
+\end{lstlisting}
+\caption{Non-Convergence in Value Range Propagation}
+\end{figure}
+
+Here, \texttt{a\_0} would converge only after 1,000,000,000 iterations. Practical compilers limit iterations by increasing the step size of range updates or ultimately giving up and annotating the variable as potentially holding any value\cite{dragon-book}.
+
+Value range propagation enables extensive dead-code elimination by revealing unreachable branches. This includes not only numeric ranges but also the possible types of variables. Type propagation is a form of value range propagation in which the "range" consists of the potential types a variable may hold rather than numeric or constant values. These analyses are particularly useful for array bounds checks in iterators and type checks in dynamically typed languages. After propagation, comparative statements or type checks that depend on constants or known types can be simplified, so subsequent \acf{DCE} passes require only minimal checks.
+
+\subsection{Dead Code Elimination}
+
+\acf{DCE} is an optimization that removes unnecessary assignments, unreachable branches, and unused functions. Removing unused functions requires interprocedural analysis.
+
+An assignment whose result is never used can be removed. This includes assignments that are later overwritten, as well as so-called no-op statements such as $x = x$. In \acf{SSA}, every assignment creates a new indexed version of a variable. If that version is never subsequently used, the assignment can be eliminated. When no versions of a variable remain, the variable itself can be removed, reducing memory usage. Note that redundant assignments can only be removed if the variable is not marked as \texttt{volatile}.  
+
+\ac{DCE} passes rely on constant propagation and value range propagation to identify dead branches, since these optimizations may convert branch conditions into constants. Dead branches can be removed along with any basic blocks they point to, provided those blocks are otherwise unreachable. $\phi$-functions must also be updated or removed to avoid referencing undefined blocks or variable indices. When a $\phi$-function is removed, the new variable version it created becomes unused and can be eliminated; typically, this removal occurs during a subsequent copy propagation pass rather than in DCE itself\cite{dragon-book}.
+
+\subsection{Interprocedural Optimizations}
+
+The concept of a \ac{CFG} can be extended to interprocedural analysis by modeling each procedure as a node in a call graph, with edges representing procedure calls. This allows optimizations to reason across procedure boundaries. If a procedure is never called and cannot be reached through indirect calls (e.g., via function pointers), it can be removed. Conversely, small procedures may be inlined at their call sites. If a procedure is not recursive and all call sites are eliminated through inlining, the procedure itself can be removed.
+
+Value propagation can also be applied interprocedurally under certain assumptions. For example, if a procedure is always invoked with the same constant argument, that constant can be propagated into the procedure body, allowing the corresponding parameter to be eliminated. More generally, the value range of a parameter can be approximated as the union of all argument ranges observed at its call sites. This can enable further simplifications, potentially reducing a procedure to a constant result that can be inlined.
+
+However, interprocedural analysis is more expensive than its intraprocedural counterpart. In practice, it requires fixed-point iteration across multiple procedures, which can be computationally expensive.
+
+Interpreters can mitigate this cost through speculative optimization. Instead of requiring global convergence, they generate specialized versions of procedures based on the argument values or ranges observed at runtime. At call time, the interpreter checks whether these assumptions still hold and either executes the specialized version or falls back to a more general implementation.
+
+\subsection{Register Allocation}
+
+An interpreter must decide where to store the intermediate values produced during execution. Whether backed by hardware registers or an array of virtual registers, the storage available for live values is finite. Register allocation is the process of assigning variables and intermediate values to these storage locations such that simultaneously live variables do not share one, spilling to memory only when necessary.
+Optimal register allocation can be framed as a graph colouring problem on a register interference graph, where nodes represent variables and edges connect pairs that are simultaneously live. This problem is NP-complete, making optimal allocation impractical for complex procedures. In practice, interpreters and JIT compilers favor \acf{LSRA} due to its low compilation overhead.
+
+\ac{LSRA} iterates over the \ac{CFG} to determine the \emph{live interval} of every variable --- the range of the control flow graph from the variable's initial assignment to its last use. After computing all live intervals, the algorithm assigns registers to variables in a single linear pass. When the number of simultaneously live variables exceeds the number of available hardware registers, a variable must be spilled: its value is written to memory and loaded back into a register only when needed. \ac{LSRA} selects the spill candidate by choosing the variable with the longest remaining live interval, on the basis that this frees the register for the greatest possible duration. However, the algorithm does not perform frequency-based prioritization, meaning that a heavily used variable inside a loop may be spilled in favor of one that is rarely executed. This makes \ac{LSRA} less suitable for ahead-of-time compilers targeting peak throughput, where more expensive allocation strategies are justified.
+
+\acf{SCBP} addresses one of \ac{LSRA}'s main inefficiencies. In \ac{LSRA}, a spilled variable that is subsequently used must be loaded into a register, used, and then immediately spilled again if no register remains free. \ac{SCBP} avoids this by inspecting, at the point of the spill decision, whether a register will become free before the variable's next use. If so, the variable can be scheduled to occupy that register directly, eliminating the redundant load-use-spill sequence.
+
+For interpreters that store intermediate results in an array of virtual registers rather than hardware registers, \ac{LSRA} serves a different but equally useful purpose: bounding the size of that array. Because the array only needs to be as large as the maximum number of simultaneously live variables, \ac{LSRA}'s live interval analysis determines this maximum precisely. Since the number of virtual registers is never exceeded by the number of live variables, no spilling occurs and the array size is kept minimal\cite{schwarz-register, poletto1999linear}.
+
+\section{Memory Management}
+
+Unlike early programming languages like C, languages usually provide mechanisms to handle memory management automatically. This section discusses different approaches to memory management and their respective benefits and drawbacks.
+
+\subsection{Reference Counting}
+
+A reference-counting garbage collector wraps every heap value in a header struct that contains, besides the payload, an atomic counter of live references.
+
+Before the value is consumed, the emitter inserts an explicit \texttt{ref} instruction that increments the counter; after the last use it emits \texttt{deref}, which decrements the counter and, if the count reaches zero, immediately invalidates the underlying memory. Function calls consume a reference to a reference counted value, though calling conventions may differ between implementations.
+
+Reference counting itself is agnostic to mutability. The counter only tracks how many pointers exist, not what is stored inside the object. Frameworks that take advantage of reference counting eliminate unintuitive mutations through \acf{COW}. Many readers may share the same physical buffer, but if anyone tries to mutate it while not holding exclusive ownership over the object ($refcount \neq 1$), a new private copy is created whose reference count is one, while the reference count of the shared object is decremented.
+
+This scheme is simple and deterministic, but it cannot cope with cyclic structures: when two objects point to each other their counters never drop to zero, causing a memory leak.
+
+Because most general-purpose languages allow arbitrary references (and therefore cycles), pure reference counting is inadequate. Reference counting still finds application in some libraries and domain specific languages that operate within these constraints. An illustration of these concepts can be found here \ref{sec:jq-refcount}.
+
+\subsection{Garbage Collection}
+
+Garbage collection is the process of automatically reclaiming memory that is no longer reachable by a program. The heap can be modeled as a graph, where objects are nodes and references between them are edges. To determine which objects are alive, the GC traverses this graph starting from a set of roots — pointers held in the stack, global variables, and registers. Any node reachable from these roots is marked as live. Once the traversal is complete, the sweep phase invalidates the underlying memory of every unmarked node, reclaiming it for future allocations.
+To keep the object graph accurate, the runtime must intercept every operation that changes a reference. When a pointer is written, an object field updated, or a variable reassigned, the runtime needs to record that edge change in the graph. This is done via write barriers: small pieces of instrumented code injected around pointer writes that notify the GC of the mutation. Without them, the GC could traverse a stale graph and either collect live objects (catastrophic) or miss garbage. This gets especially complex in concurrent GC. Should an exception cause the stack to unwind, the GC runtime needs to insert instructions into the relevant landing pads to keep the graph up to date.
+Most modern runtimes build on this with generational GC, motivated by the generational hypothesis: most objects die young. Rather than scanning the entire heap every collection, objects are assigned to generations based on how long they've survived. A minor GC runs frequently and applies mark-and-sweep only to the youngest generation, where most garbage is expected to be found. A major GC runs less often and sweeps across all generations. Any object that survives a collection is promoted to the next generation, where it will be checked less frequently — keeping the common case fast while still eventually collecting long-lived objects.
+Garbage collection is widely used in languages that don't require manual memory management, however garbage collection introduces substantial overhead and requires a GC-runtime\footnote{This is especially a concern in embedded environments. For user-space code libraries exist to handle this added complexity}\cite{ungar1984generation}.
+
+\subsection{\acf{RAII}}
+
+Memory safety requires a disciplined answer to two questions: who is responsible for releasing a resource, and for how long is a reference to it valid? Three interlocking concepts address these questions: ownership, borrowing, and lifetimes.
+
+Every resource has exactly one owner at any point in time. That owner is solely responsible for releasing the object by calling its destructor. Under \ac{RAII}, a resource is acquired when an object is initialized and released when that object is destroyed. Ownership can be \emph{transferred} to another binding, after which the source is no longer valid and the destination becomes the sole responsible party. Languages such as Rust enforce this statically; C++ provides the same mechanism through move constructors but relies on programmer discipline or static analysis tools to prevent use after move.
+
+\emph{Borrowing} allows a resource to be temporarily accessed without transferring ownership. A borrow creates a reference to the resource and passes it to a callee; the original owner retains responsibility for eventual cleanup and reclaims full control when the borrow ends. To prevent data races and dangling references, a type system can restrict borrows: typically either many simultaneous immutable references or exactly one mutable reference is permitted at a time, but not both.
+
+A \emph{lifetime} is the static region of the program during which a reference is guaranteed to be valid. A sound type system must ensure that no reference outlives the value it points to; a reference that outlives its referent is a dangling pointer. Accessing it is undefined behavior. In practice, lifetimes are either inferred by the compiler or annotated explicitly by the programmer to express constraints between the lifetime of a reference and the lifetime of the value it was derived from\cite{jung2017rustbelt,stroustrup2015resource}.
+
+Under normal control flow, the compiler automatically inserts destructor calls at every exit point of a scope, whether that exit is a normal return or an early return. Non-local exits -- such as exceptions -- bypass the normal function epilogue entirely, meaning the compiler cannot statically insert cleanup at the exit site. Instead, the runtime must walk the call stack and invoke destructors for every live owned value between the exit site and the handler. This mechanism is discussed in the following section. Importantly, \ac{RAII} only guarantees cleanup for values managed by the host language's type system. An interpreter that manages guest-language values explicitly -- for example, through a manually maintained heap -- is responsible for replicating this cleanup behavior when a guest exception propagates, since those values fall outside the host's ownership tracking.
+
+\section{Non-local Control Flow and Exception Handling}
+
+As established in the preceding section, \ac{RAII} guarantees that owned values are destroyed when they go out of scope, but non-local exits bypass the normal epilogue and require a separate mechanism to uphold this guarantee. When control leaves a scope through an exception, panic, or long jump, every owned value between the exit site and the matching handler must still be destroyed exactly once. This is achieved through \emph{stack unwinding}: the unwinder walks the call stack from the exit site toward the handler, invoking the destructor of each live owned value along the way.
+For an interpreter that supports guest-language exceptions, this introduces two distinct unwinding concerns. The first is unwinding through the interpreter's own host-language frames -- in a Rust implementation, Rust's ownership system and the underlying unwinding infrastructure ensure that the interpreter's internal allocations are cleaned up correctly. The second is unwinding through the guest language's call frames: the interpreter is responsible for walking its own representation of the guest call stack and releasing any guest-language values that go out of scope as the exception propagates, since these are managed explicitly and lie outside the host type system's purview.
+
+\subsection{Two-phase unwinding}
+
+A naive implementation would destroy objects immediately when an exception is thrown. This is wasteful if no handler exists, since the program will terminate anyway. The Itanium C++ \ac{ABI}~\cite{itanium-abi-eh}, followed by both GCC and Clang, avoids this by splitting unwinding into two phases. On System~V platforms, Rust uses the same Itanium ABI unwinding infrastructure, meaning that panics and exceptions unwind safely through mixed Rust and C++ frames. This is directly relevant for an interpreter written in Rust that calls into native libraries or exposes a native API: unwinding will cross these boundaries correctly provided that landing pads are maintained on both sides\cite{llvm-eh}.
+
+In the \emph{search phase}, the call stack is walked without modifying any state or running any destructors until a frame containing a handler for the exception is found. If the search reaches the top of the stack without finding one, the program terminates immediately. If a matching handler is located, the \emph{cleanup phase} walks the stack a second time, invoking destructors and running cleanup code for every object that goes out of scope, until it reaches the handler frame and transfers control to it\cite{itanium-abi-eh, llvm-eh}.
+
+\subsection{Landing pads}
+
+A \gls{landingpad-def} is a small block of compiler-generated code that serves as the entry point for the unwinder when it reaches a frame that requires attention -- either because the frame contains a matching handler, or because it has live owned objects that must be destroyed. When the cleanup phase reaches such a frame, the unwinder transfers control to the landing pad. The landing pad runs the necessary destructors, then either dispatches to the appropriate catch block if the exception type matches, or returns control to the unwinder to continue up the stack if it does not. A landing pad is therefore required at any call site that could throw and that has live owned objects in the enclosing scope. In practice, most calls that allocate memory or acquire resources fall into this category\cite{itanium-abi-eh, llvm-eh}.
+
+If the interpreter is extended with a \ac{JIT} backend, generated machine code must also register unwind information so that the unwinder can traverse JIT-compiled frames correctly. On Linux this is achieved by registering dynamic frame information at runtime. Without it, an exception propagating through a JIT frame will either terminate the process or corrupt the stack, since the unwinder has no record of that frame's layout or owned values\cite{llvm-jitlink}.
+
+\section{Interpreter Models}
+
+An interpreter executes a program without first compiling it to native machine code. Instead, it processes the program representation directly, either by walking a syntax tree or by dispatching over a sequence of lower-level instructions. The choice of model has practical consequences for implementation complexity, execution speed, and the ease with which language semantics can be expressed.
+
+\subsection{Tree-Walking Interpreters}
+
+The simplest interpreter model operates directly on the \ac{AST} produced by the parser. Each node in the tree corresponds to a syntactic construct, such as a binary expression, a loop, or a function call. The interpreter evaluates the program by recursively visiting each node and performing the corresponding operation. A binary addition node, for example, would recursively evaluate its left and right children, then return their sum.
+
+Tree-walking interpreters are straightforward to implement because the structure of the interpreter mirrors the structure of the language grammar. There is no separate compilation step: the parser's output is also the execution representation. The main drawback is speed: recursive dispatch over heap-allocated tree nodes incurs significant overhead compared to a flat \ac{IR}, which is more amenable to optimization\cite{ball-interpreter-in-go}.
+
+\subsection{Bytecode Virtual Machines}
+A bytecode \ac{VM} introduces an \ac{IR} between the source program and execution. The \ac{AST} is compiled to a flat sequence of instructions — bytecode — which the interpreter then executes in a dispatch loop. This avoids the overhead of recursive tree traversal and produces a more compact, cache-friendly representation.
+
+\paragraph{Representation of Intermediate Values}
+Intermediate values in a virtual machine are the transient data produced and consumed by each instruction. How these values are stored and addressed is the principal design axis that separates stack-based from register-based bytecode VMs.
+
+In a \emph{stack machine}, every operation implicitly works on the topmost elements of a last-in, first-out operand stack. The bytecode itself never names the storage cells; it only states what to do (e.g.\ \texttt{ADD}, \texttt{LOAD\_CONST}~7). At execution time the interpreter maintains a stack pointer. A binary addition compiles to a single-byte opcode and is executed as
+\[
+\text{temp} \leftarrow \mathit{stack}[\mathit{SP}-1] + \mathit{stack}[\mathit{SP}]; \quad
+\mathit{SP} \leftarrow \mathit{SP}-1; \quad
+\mathit{stack}[\mathit{SP}] \leftarrow \text{temp}.
+\]
+Because operands are always at known offsets relative to the stack pointer, instructions are extremely compact — typically a one-byte opcode plus an optional embedded literal — and the lowering pass from \ac{AST} to bytecode is straightforward to implement. The consequence is that the operand stack becomes a frequently accessed data structure: every push and pop touches memory, and expression trees must be serialised in postfix order, often generating more instructions than a register-based encoding of the same computation would require.
+
+In a \emph{register machine}, instructions have explicit operand indices instead of an implicit stack. The same addition is expressed as \texttt{ADD~r3,~r1,~r2}, which maps directly to
+\[
+R[3] \leftarrow R[1] + R[2],
+\]
+with no change to a global stack pointer. Because results can be held in named registers until they are consumed, an expression tree can often be evaluated with one instruction per operator, reducing the total instruction count relative to a stack encoding. The trade-off is that instructions are larger — typically 8--32 bits per operand field — and the compiler must perform liveness analysis and register allocation to assign virtual registers efficiently.
+
+Regardless of which model is used, bytecode instructions should each serve a single, type-specific purpose. An \texttt{iadd} instruction adds two integers; if an operand holds a floating-point value, a separate conversion instruction must precede it, or a dedicated mixed-type instruction must be used. This regularity simplifies the interpreter dispatch loop and makes type errors detectable at the instruction level\cite{dragon-book}.

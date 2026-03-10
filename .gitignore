@@ -1,9 +1,10 @@
-*.txt
 *.dot
 *.png
 *.dump
 *.ir
 SetlXgrammar.g4
+TODO.md
 target
-Cargo.lock
 __TESTCACHE__
+vgcore.*
+writeup/build

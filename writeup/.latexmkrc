@@ -1,0 +1,1 @@
+$makeglossaries = 'makeglossaries %O %S';

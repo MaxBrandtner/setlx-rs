@@ -1,0 +1,8 @@
+try {
+scan ("testxsome") using position {
+	regex "some": print("unreachable");
+	regex "test" as some: print("" + some + position);
+}
+} catch (e) {
+	print(e);
+}

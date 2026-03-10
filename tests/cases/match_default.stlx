@@ -1,0 +1,6 @@
+match ("some") {
+	case "other":
+		print("hello");
+	default:
+		print("world");
+}

@@ -1,0 +1,5 @@
+print(parse("x")+"hello");
+print("a" + parse("x")+"hello");
+print("test: $@@@sum(1,1)$");
+print("$@@@sum(1,1)$ = 2");
+print(+/{@@@sum(1,1), "some"});

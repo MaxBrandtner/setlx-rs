@@ -1,0 +1,17 @@
+a := procedure() {
+	try {
+		return 1;
+	} catch (e) {
+
+	}
+};
+
+b := procedure() {
+	try {
+		return a();
+	} catch (e) {
+
+	}
+};
+
+b();
